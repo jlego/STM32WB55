@@ -1,0 +1,10 @@
+../UI/lvgl/src/lv_core/lv_obj_style_dec.h:100:1:lv_obj_set_style_local_bg_color	16	static
+../UI/lvgl/src/lv_core/lv_obj_style_dec.h:103:1:lv_obj_set_style_local_border_width	16	static
+../UI/lvgl/src/lv_core/lv_obj_style_dec.h:141:1:lv_obj_set_style_local_text_color	16	static
+../UI/lvgl/src/lv_core/lv_obj_style_dec.h:145:1:lv_obj_set_style_local_text_font	24	static
+../UI/lvgl/src/lv_core/lv_disp.h:158:26:lv_scr_act	8	static
+../UI/infinitime_adapter.c:11:6:infinitime_ui_init	72	static
+../UI/infinitime_adapter.c:85:6:infinitime_ui_task	8	static
+../UI/infinitime_adapter.c:91:17:infinitime_get_touch_info	16	static
+../UI/infinitime_adapter.c:97:6:infinitime_set_screen	16	static
+../UI/infinitime_adapter.c:104:6:infinitime_update_screen	8	static

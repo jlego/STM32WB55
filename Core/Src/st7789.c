@@ -240,9 +240,54 @@ void ST7789_Init(void) {
     // 设置LCD显示方向
     LCD_direction(USE_HORIZONTAL);
     
-    // 打开背光
-    HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_SET);
+    // 设置背光为10%亮度
+    ST7789_SetBacklight(10);
     
     // 全蓝清屏 - 使用ST7789自己的填充函数以确保正确的偏移处理
     ST7789_FillScreen(COLOR_BLUE);
+}
+
+/* 背光PWM控制变量 */
+static uint8_t bl_brightness = 100;
+static uint32_t bl_last_tick = 0;
+static uint8_t bl_state = 0;
+
+/* 设置背光亮度
+ * brightness: 0-100%
+ * 注意：需要在主循环中调用ST7789_BacklightTick()来更新PWM
+ */
+void ST7789_SetBacklight(uint8_t brightness)
+{
+    if (brightness > 100) brightness = 100;
+    bl_brightness = brightness;
+    bl_last_tick = HAL_GetTick();
+    
+    if (brightness == 0) {
+        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_RESET);
+    } else {
+        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_SET);
+    }
+}
+
+/* 在主循环中调用此函数以更新背光PWM */
+void ST7789_BacklightTick(void)
+{
+    if (bl_brightness == 0 || bl_brightness == 100) return;
+    
+    uint32_t current_tick = HAL_GetTick();
+    uint32_t elapsed = current_tick - bl_last_tick;
+    
+    // PWM周期10ms
+    uint32_t period = 10;
+    uint32_t on_time = (period * bl_brightness) / 100;
+    
+    if (elapsed >= period) {
+        bl_last_tick = current_tick;
+        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_SET);
+    } else if (elapsed >= on_time && bl_state == 0) {
+        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_RESET);
+        bl_state = 1;
+    } else if (elapsed < on_time) {
+        bl_state = 0;
+    }
 }

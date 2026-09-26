@@ -1,0 +1,14 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	24	static
+../UI/ft3168_touch.c:22:13:ft3168_i2c_read	16	static
+../UI/ft3168_touch.c:28:13:ft3168_i2c_write	16	static
+../UI/ft3168_touch.c:34:13:ft3168_hard_reset	8	static
+../UI/ft3168_touch.c:43:13:ft3168_soft_reset	16	static
+../UI/ft3168_touch.c:50:6:ft3168_touch_init	32	static
+../UI/ft3168_touch.c:105:21:ft3168_touch_get_info	64	static
+../UI/ft3168_touch.c:153:9:ft3168_touch_get_chip_id	4	static
+../UI/ft3168_touch.c:159:9:ft3168_touch_get_firmware_id	4	static
+../UI/ft3168_touch.c:165:6:ft3168_touch_enter_factory_mode	16	static
+../UI/ft3168_touch.c:172:6:ft3168_touch_exit_factory_mode	16	static
+../UI/ft3168_touch.c:179:6:ft3168_touch_set_interrupt_mode	16	static
+../UI/ft3168_touch.c:185:6:FT3168_INT_IRQHandler	8	static
+../UI/ft3168_touch.c:191:6:HAL_GPIO_EXTI_Callback	16	static

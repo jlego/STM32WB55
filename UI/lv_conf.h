@@ -15,7 +15,7 @@
 
 /* Maximal horizontal and vertical resolution to support by the library.*/
 #define LV_HOR_RES_MAX          (240)
-#define LV_VER_RES_MAX          (240)
+#define LV_VER_RES_MAX          (280)
 
 /* Color depth:
  * - 1:  1 byte per pixel
@@ -292,11 +292,10 @@ typedef void* lv_img_decoder_user_data_t;
 
 /* 1: use a custom tick source.
  * It removes the need to manually update the tick with `lv_tick_inc`) */
-#define LV_TICK_CUSTOM     1
+#define LV_TICK_CUSTOM     0
 #if LV_TICK_CUSTOM == 1
-#define LV_TICK_CUSTOM_INCLUDE  "FreeRTOS.h"       /*Header for the system time function*/
-uint32_t xTaskGetTickCount(); /*Forward declare to avoid compiler warning*/
-#define LV_TICK_CUSTOM_SYS_TIME_EXPR (xTaskGetTickCount()) /*Expression evaluating to current system time in ms*/
+#define LV_TICK_CUSTOM_INCLUDE  "stm32wbxx_hal.h"  /*Header for the system time function*/
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR (HAL_GetTick()) /*Expression evaluating to current system time in ms*/
 #endif   /*LV_TICK_CUSTOM*/
 
 typedef void* lv_disp_drv_user_data_t;             /*Type of user data in the display driver*/

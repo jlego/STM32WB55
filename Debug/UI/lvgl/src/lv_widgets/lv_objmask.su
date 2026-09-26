@@ -1,0 +1,8 @@
+../UI/lvgl/src/lv_widgets/../lv_core/../lv_font/../lv_misc/lv_mem.h:151:22:_lv_memcpy	24	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:52:12:lv_objmask_create	24	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:107:21:lv_objmask_add_mask	32	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:137:6:lv_objmask_update_mask	40	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:155:6:lv_objmask_remove_mask	24	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:206:24:lv_objmask_design	136	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:312:17:lv_objmask_signal	40	static
+../UI/lvgl/src/lv_widgets/lv_objmask.c:337:17:get_param_size	24	static

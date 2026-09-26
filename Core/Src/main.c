@@ -136,6 +136,9 @@ int main(void)
       last_tick = current_tick;
     }
     
+    /* 更新背光PWM */
+    ST7789_BacklightTick();
+    
     /* 处理UI任务 */
     infinitime_ui_task();
   }

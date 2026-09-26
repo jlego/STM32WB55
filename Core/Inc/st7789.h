@@ -93,11 +93,11 @@
 #define LCD_BL_PIN          GPIO_PIN_0      // 背光引脚，根据实际情况调整
 #define LCD_BL_PORT         GPIOA
 
-// 触摸屏引脚定义 - 根据需要调整
-#define TP_INT_PIN          GPIO_PIN_2
-#define TP_INT_PORT         GPIOB
+// 触摸屏引脚定义 - FT3168
+#define TP_INT_PIN          GPIO_PIN_3
+#define TP_INT_PORT         GPIOA
 
-#define TP_RST_PIN          GPIO_PIN_14
+#define TP_RST_PIN          GPIO_PIN_2
 #define TP_RST_PORT         GPIOA
 
 #define TP_SDA_PIN          GPIO_PIN_7
@@ -115,6 +115,8 @@ void ST7789_SetAddressWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
 void ST7789_FillScreen(uint16_t color);
 void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color);
 void ST7789_Delay(uint32_t ms);
+void ST7789_SetBacklight(uint8_t brightness);  // 亮度控制 0-100%
+void ST7789_BacklightTick(void);               // 在主循环中调用以更新PWM
 
 // GPIO控制函数（供LVGL使用）
 static inline void lcd_cs_set(void) { HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET); }

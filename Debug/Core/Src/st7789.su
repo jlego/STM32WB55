@@ -1,0 +1,10 @@
+../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	24	static
+../Core/Src/st7789.c:9:6:ST7789_Delay	16	static
+../Core/Src/st7789.c:14:13:ST7789_WriteSPI	16	static
+../Core/Src/st7789.c:18:6:ST7789_WriteCommand	16	static
+../Core/Src/st7789.c:31:6:ST7789_WriteData	16	static
+../Core/Src/st7789.c:44:6:ST7789_WriteData16	16	static
+../Core/Src/st7789.c:49:6:ST7789_SetAddressWindow	32	static
+../Core/Src/st7789.c:70:6:ST7789_FillScreen	24	static
+../Core/Src/st7789.c:87:6:ST7789_DrawPixel	16	static
+../Core/Src/st7789.c:94:6:ST7789_Init	32	static

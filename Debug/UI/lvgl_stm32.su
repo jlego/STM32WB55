@@ -1,6 +1,6 @@
-../Core/Inc/st7789.h:120:20:lcd_cs_set	8	static
-../Core/Inc/st7789.h:121:20:lcd_cs_clr	8	static
-../Core/Inc/st7789.h:122:20:lcd_dc_set	8	static
+../Core/Inc/st7789.h:122:20:lcd_cs_set	8	static
+../Core/Inc/st7789.h:123:20:lcd_cs_clr	8	static
+../Core/Inc/st7789.h:124:20:lcd_dc_set	8	static
 ../UI/lvgl_stm32.c:14:13:disp_flush	40	static
 ../UI/lvgl_stm32.c:43:13:touchpad_read	40	static
 ../UI/lvgl_stm32.c:56:6:lvgl_init	88	static

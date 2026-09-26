@@ -7,8 +7,8 @@
 extern SPI_HandleTypeDef hspi1;
 
 static lv_disp_buf_t disp_buf;
-static lv_color_t buf1[LV_HOR_RES_MAX * 10];
-static lv_color_t buf2[LV_HOR_RES_MAX * 10];
+static lv_color_t buf1[LV_HOR_RES_MAX * 100];
+static lv_color_t buf2[LV_HOR_RES_MAX * 50];
 
 /* 显示刷新回调函数 */
 static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)

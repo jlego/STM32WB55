@@ -1,9 +1,53 @@
 #include "main.h"
 #include "st7789.h"
 #include "lcd.h"  // 包含LCD相关的函数声明和常量定义
+#include <stdbool.h>
 
 // SPI句柄（从main.c引入）
 extern SPI_HandleTypeDef hspi1;
+
+// TIM2 PWM句柄
+static TIM_HandleTypeDef htim2;
+static uint8_t bl_brightness = 100;
+
+/* 初始化TIM2 PWM输出（PA0 = TIM2_CH1） */
+static void ST7789_PWM_Init(void)
+{
+    __HAL_RCC_TIM2_CLK_ENABLE();
+    
+    htim2.Instance = TIM2;
+    htim2.Init.Prescaler = 64 - 1;       /* 64MHz / 64 = 1MHz */
+    htim2.Init.CounterMode = TIM_COUNTERMODE_UP;
+    htim2.Init.Period = 100 - 1;          /* 1MHz / 100 = 10kHz PWM频率 */
+    htim2.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
+    htim2.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_ENABLE;
+    HAL_TIM_PWM_Init(&htim2);
+    
+    TIM_OC_InitTypeDef sConfigOC = {0};
+    sConfigOC.OCMode = TIM_OCMODE_PWM1;
+    sConfigOC.Pulse = 10;                 /* 10%占空比 */
+    sConfigOC.OCPolarity = TIM_OCPOLARITY_HIGH;
+    sConfigOC.OCFastMode = TIM_OCFAST_DISABLE;
+    HAL_TIM_PWM_ConfigChannel(&htim2, &sConfigOC, TIM_CHANNEL_1);
+    
+    /* 配置PA0为TIM2_CH1复用功能 */
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    GPIO_InitStruct.Pin = GPIO_PIN_0;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    GPIO_InitStruct.Alternate = GPIO_AF1_TIM2;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
+}
+
+/* 设置PWM占空比 */
+static void ST7789_PWM_SetDuty(uint8_t duty)
+{
+    if (duty > 100) duty = 100;
+    __HAL_TIM_SET_COMPARE(&htim2, TIM_CHANNEL_1, duty);
+}
 
 // 延时函数
 void ST7789_Delay(uint32_t ms) {
@@ -142,10 +186,6 @@ void ST7789_Init(void) {
     ST7789_Delay(100);
     HAL_GPIO_WritePin(LCD_RST_PORT, LCD_RST_PIN, GPIO_PIN_SET);
     ST7789_Delay(100);
-    
-    // 点亮背光
-    HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_SET);
-    ST7789_Delay(100);
 
     //************* ST7789初始化序列 **********//	
     ST7789_WriteCommand(0x36); 
@@ -240,54 +280,27 @@ void ST7789_Init(void) {
     // 设置LCD显示方向
     LCD_direction(USE_HORIZONTAL);
     
-    // 设置背光为10%亮度
-    ST7789_SetBacklight(10);
+    // 初始化TIM2 PWM背光控制（10%亮度）
+    ST7789_PWM_Init();
+    ST7789_PWM_SetDuty(10);
     
-    // 全蓝清屏 - 使用ST7789自己的填充函数以确保正确的偏移处理
-    ST7789_FillScreen(COLOR_BLUE);
+    // 全黑清屏
+    ST7789_FillScreen(COLOR_BLACK);
 }
-
-/* 背光PWM控制变量 */
-static uint8_t bl_brightness = 100;
-static uint32_t bl_last_tick = 0;
-static uint8_t bl_state = 0;
 
 /* 设置背光亮度
  * brightness: 0-100%
- * 注意：需要在主循环中调用ST7789_BacklightTick()来更新PWM
+ * 使用TIM2硬件PWM实现精确亮度控制
  */
 void ST7789_SetBacklight(uint8_t brightness)
 {
     if (brightness > 100) brightness = 100;
     bl_brightness = brightness;
-    bl_last_tick = HAL_GetTick();
-    
-    if (brightness == 0) {
-        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_RESET);
-    } else {
-        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_SET);
-    }
+    ST7789_PWM_SetDuty(brightness);
 }
 
-/* 在主循环中调用此函数以更新背光PWM */
+/* 在主循环中调用此函数以更新背光 */
 void ST7789_BacklightTick(void)
 {
-    if (bl_brightness == 0 || bl_brightness == 100) return;
-    
-    uint32_t current_tick = HAL_GetTick();
-    uint32_t elapsed = current_tick - bl_last_tick;
-    
-    // PWM周期10ms
-    uint32_t period = 10;
-    uint32_t on_time = (period * bl_brightness) / 100;
-    
-    if (elapsed >= period) {
-        bl_last_tick = current_tick;
-        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_SET);
-    } else if (elapsed >= on_time && bl_state == 0) {
-        HAL_GPIO_WritePin(LCD_BL_PORT, LCD_BL_PIN, GPIO_PIN_RESET);
-        bl_state = 1;
-    } else if (elapsed < on_time) {
-        bl_state = 0;
-    }
+    /* 硬件PWM自动运行，无需软件干预 */
 }

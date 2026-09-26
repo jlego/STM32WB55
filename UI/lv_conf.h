@@ -393,7 +393,7 @@ typedef void* lv_indev_drv_user_data_t;            /*Type of user data in the in
 #define LV_FONT_MONTSERRAT_42    0
 #define LV_FONT_MONTSERRAT_44    0
 #define LV_FONT_MONTSERRAT_46    0
-#define LV_FONT_MONTSERRAT_48    0
+#define LV_FONT_MONTSERRAT_48    1
 
 /* Demonstrate special features */
 #define LV_FONT_MONTSERRAT_12_SUBPX      0
@@ -416,9 +416,7 @@ typedef void* lv_indev_drv_user_data_t;            /*Type of user data in the in
                                LV_FONT_DECLARE(jetbrains_mono_extrabold_compressed) \
                                LV_FONT_DECLARE(jetbrains_mono_42) \
                                LV_FONT_DECLARE(jetbrains_mono_76) \
-                               LV_FONT_DECLARE(open_sans_light) \
-                               LV_FONT_DECLARE(fontawesome_weathericons) \
-                               LV_FONT_DECLARE(lv_font_sys_48)
+                               LV_FONT_DECLARE(open_sans_light)
 
 /* Enable it if you have fonts with a lot of characters.
  * The limit depends on the font size, font face and bpp

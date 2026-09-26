@@ -19,7 +19,8 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "usb_device.h"
-#include "st7789.h"  // 添加ST7789头文件
+#include "st7789.h"
+#include "infinitime_adapter.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
@@ -112,24 +113,31 @@ int main(void)
   // 初始化LCD显示屏
   ST7789_Init();
   
+  // 初始化InfiniTime UI系统
+  infinitime_ui_init();
 
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-  // HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET);
+  
+  uint32_t last_tick = HAL_GetTick();
+  
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-    /*
-    // 实现一秒亮一秒灭的效果
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_SET); // 设置为高电平，LED应熄灭
-    HAL_Delay(1000); // 延迟 1 秒
-    HAL_GPIO_WritePin(GPIOB, GPIO_PIN_5, GPIO_PIN_RESET); // 设置为低电平，LED应点亮
-    HAL_Delay(1000); // 延迟 1 秒
-    */
+    uint32_t current_tick = HAL_GetTick();
+    uint32_t tick_diff = current_tick - last_tick;
+    
+    if (tick_diff >= 5) {
+      lv_tick_inc(tick_diff);
+      last_tick = current_tick;
+    }
+    
+    /* 处理UI任务 */
+    infinitime_ui_task();
   }
   /* USER CODE END 3 */
 }

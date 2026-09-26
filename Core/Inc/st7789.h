@@ -116,4 +116,10 @@ void ST7789_FillScreen(uint16_t color);
 void ST7789_DrawPixel(uint16_t x, uint16_t y, uint16_t color);
 void ST7789_Delay(uint32_t ms);
 
+// GPIO控制函数（供LVGL使用）
+static inline void lcd_cs_set(void) { HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_SET); }
+static inline void lcd_cs_clr(void) { HAL_GPIO_WritePin(LCD_CS_PORT, LCD_CS_PIN, GPIO_PIN_RESET); }
+static inline void lcd_dc_set(void) { HAL_GPIO_WritePin(LCD_DC_PORT, LCD_DC_PIN, GPIO_PIN_SET); }
+static inline void lcd_dc_clr(void) { HAL_GPIO_WritePin(LCD_DC_PORT, LCD_DC_PIN, GPIO_PIN_RESET); }
+
 #endif

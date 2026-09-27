@@ -2221,8 +2221,8 @@ void HAL_I2C_MspInit(I2C_HandleTypeDef* hi2c)
     GPIO_InitStruct.Pull = GPIO_NOPULL;
  8000e80:	2300      	movs	r3, #0
  8000e82:	667b      	str	r3, [r7, #100]	@ 0x64
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
- 8000e84:	2302      	movs	r3, #2
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+ 8000e84:	2300      	movs	r3, #0
  8000e86:	66bb      	str	r3, [r7, #104]	@ 0x68
     GPIO_InitStruct.Alternate = GPIO_AF4_I2C1;
  8000e88:	2304      	movs	r3, #4

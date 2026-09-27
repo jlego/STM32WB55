@@ -13,6 +13,7 @@ void lvgl_debug_draw(void);
 void lvgl_debug_set_enabled(bool en);
 void lvgl_touch_irq_handler(void);
 void lvgl_touch_release_handler(void);
+void lvgl_touch_process(void);
 
 #ifdef __cplusplus
 }

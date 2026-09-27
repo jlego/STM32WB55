@@ -459,6 +459,13 @@ static void switch_screen(it_screen_t screen) {
         clock_ui.task_refresh = NULL;
     }
     
+    /* 清零 UI 结构体，防止访问已销毁的对象 */
+    memset(&clock_ui, 0, sizeof(clock_ui));
+    memset(&launcher_ui, 0, sizeof(launcher_ui));
+    memset(&quick_settings_ui, 0, sizeof(quick_settings_ui));
+    memset(&notifications_ui, 0, sizeof(notifications_ui));
+    memset(&stopwatch_ui, 0, sizeof(stopwatch_ui));
+    
     current_screen = screen;
     last_activity_time = HAL_GetTick();
     
@@ -554,7 +561,12 @@ void infinitime_ui_init(void)
 
 void infinitime_ui_task(void)
 {
+    /* 先处理触摸中断标志（读 I2C + 缓存数据），再让 LVGL 处理 */
+    lvgl_touch_process();
+    
     lv_task_handler();
+    
+    /* 更新调试图层（帧计数 + 触摸坐标），通过 LVGL label 走正常刷新 */
     lvgl_debug_draw();
     
     /* 检测屏幕超时 - 模拟InfiniTime的自动休眠 */
@@ -565,6 +577,11 @@ void infinitime_ui_task(void)
     } else if (inactive_time < 30000 && is_dimmed) {
         is_dimmed = false;
         ST7789_SetBacklight(10);
+    }
+    
+    /* 触摸释放后禁用触摸输入 */
+    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
+        lvgl_touch_release_handler();
     }
 }
 

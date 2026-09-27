@@ -6,8 +6,9 @@
 // SPI句柄（从main.c引入）
 extern SPI_HandleTypeDef hspi1;
 
-// TIM2 PWM句柄
-static TIM_HandleTypeDef htim2;
+// TIM2 PWM句柄（使用main.c中的htim2，由MX_TIM2_Init初始化）
+extern TIM_HandleTypeDef htim2;
+
 static uint8_t bl_brightness = 100;
 
 /* 初始化TIM2 PWM输出（PA0 = TIM2_CH1） */
@@ -156,30 +157,9 @@ void ST7789_Init(void) {
     GPIO_InitStruct.Pin = LCD_CS_PIN;
     HAL_GPIO_Init(LCD_CS_PORT, &GPIO_InitStruct);
     
-    // 配置背光引脚
-    GPIO_InitStruct.Pin = LCD_BL_PIN;
-    HAL_GPIO_Init(LCD_BL_PORT, &GPIO_InitStruct);
-    
-    // 配置触摸屏引脚
-    GPIO_InitStruct.Pin = TP_INT_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    HAL_GPIO_Init(TP_INT_PORT, &GPIO_InitStruct);
-    
-    GPIO_InitStruct.Pin = TP_RST_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(TP_RST_PORT, &GPIO_InitStruct);
-    
-    GPIO_InitStruct.Pin = TP_SDA_PIN;
-    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-    GPIO_InitStruct.Pull = GPIO_NOPULL;
-    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
-    HAL_GPIO_Init(TP_SDA_PORT, &GPIO_InitStruct);
-    
-    GPIO_InitStruct.Pin = TP_SCL_PIN;
-    HAL_GPIO_Init(TP_SCL_PORT, &GPIO_InitStruct);
+    /* 注意：不配置 TP_INT/TP_RST/TP_SDA/TP_SCL 引脚，
+     * 它们由 CubeIDE MX_GPIO_Init() 和 ft3168_touch_init() 负责。
+     * 之前配置 PB6/PB7 为 OUTPUT_PP 会覆盖 I2C AF 配置，导致 I2C 失效。 */
     
     // 硬件复位
     HAL_GPIO_WritePin(LCD_RST_PORT, LCD_RST_PIN, GPIO_PIN_RESET);
@@ -280,8 +260,8 @@ void ST7789_Init(void) {
     // 设置LCD显示方向
     LCD_direction(USE_HORIZONTAL);
     
-    // 初始化TIM2 PWM背光控制（10%亮度）
-    ST7789_PWM_Init();
+    /* MX_TIM2_Init() 已由 CubeIDE 调用，此处只需启动 PWM */
+    HAL_TIM_PWM_Start(&htim2, TIM_CHANNEL_1);
     ST7789_PWM_SetDuty(10);
     
     // 全黑清屏

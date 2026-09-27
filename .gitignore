@@ -1,0 +1,8 @@
+Debug/
+build/
+dist/
+.vscode/
+.env
+.DS_Store
+.cache
+*.bin

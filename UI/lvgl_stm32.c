@@ -14,9 +14,10 @@ static lv_color_t buf2[LV_HOR_RES_MAX * 50];
 static lv_indev_drv_t touch_indev_drv;
 static lv_indev_t *touch_indev = NULL;
 static bool debug_enabled = true;
-static volatile int16_t dbg_x = -1, dbg_y = -1;
-static volatile bool dbg_pressed = false;
-static volatile bool dbg_updated = false;
+
+/* LVGL 调试图层 label（在 system layer 上，始终置顶） */
+static lv_obj_t *dbg_label = NULL;
+static uint32_t dbg_frame_count = 0;
 
 /* 5x7 ASCII字体位图 */
 static const uint8_t font5x7[][5] = {
@@ -83,7 +84,7 @@ static const uint8_t font5x7[][5] = {
 
 #define DEBUG_BG_X     27
 #define DEBUG_BG_Y     2
-#define DEBUG_BG_W     180
+#define DEBUG_BG_W     200
 #define DEBUG_BG_H     14
 
 static void st7789_draw_char(uint16_t x, uint16_t y, char c, uint16_t color)
@@ -157,51 +158,40 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
     uint16_t *buf = (uint16_t *)color_p;
     int32_t total_pixels = width * height;
     
-    /* 设置显示窗口 */
+    if (total_pixels <= 0) {
+        lv_disp_flush_ready(disp_drv);
+        return;
+    }
+    
     ST7789_SetAddressWindow(area->x1, area->y1, width, height);
     
-    /* 开始写入数据 */
     lcd_dc_set();
     lcd_cs_clr();
     
-    /* 
-     * 批量发送像素数据
-     * LV_COLOR_16_SWAP=1 时，LVGL内部已经是交换后的格式，直接发送即可
-     * 使用50ms超时防止阻塞
-     */
-    HAL_SPI_Transmit(&hspi1, (uint8_t *)buf, total_pixels * 2, 50);
+    HAL_StatusTypeDef spi_status = HAL_SPI_Transmit(&hspi1, (uint8_t *)buf, total_pixels * 2, 50);
     
     lcd_cs_set();
     
-    /* 通知LVGL刷新完成 */
+    if (spi_status != HAL_OK) {
+        static uint32_t spi_err_count = 0;
+        spi_err_count++;
+    }
+    
     lv_disp_flush_ready(disp_drv);
 }
 
+/* 中断驱动的触摸数据缓存 */
+static volatile bool touch_irq_flag = false;
+static volatile lv_coord_t touch_buf_x = 0;
+static volatile lv_coord_t touch_buf_y = 0;
+static volatile bool touch_buf_pressed = false;
+
 static bool touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
 {
-    ft3168_touch_info_t touch = ft3168_touch_get_info();
-    
-    if (touch.is_touching && touch.points[0].is_valid) {
-        data->point.x = touch.points[0].x;
-        data->point.y = touch.points[0].y;
-        data->state = LV_INDEV_STATE_PR;
-    } else {
-        data->state = LV_INDEV_STATE_REL;
-        /* 触摸释放后禁用输入设备，避免继续调用 */
-        if (touch_indev) {
-            lv_indev_enable(touch_indev, false);
-        }
-    }
-    
-    if (debug_enabled) {
-        bool pressed = (data->state == LV_INDEV_STATE_PR);
-        if (pressed != dbg_pressed || (pressed && (data->point.x != dbg_x || data->point.y != dbg_y))) {
-            dbg_x = data->point.x;
-            dbg_y = data->point.y;
-            dbg_pressed = pressed;
-            dbg_updated = true;
-        }
-    }
+    /* 纯中断驱动：只返回缓存数据，不做任何 I2C/GPIO 操作 */
+    data->point.x = touch_buf_x;
+    data->point.y = touch_buf_y;
+    data->state = touch_buf_pressed ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
     
     return false;
 }
@@ -210,7 +200,9 @@ void lvgl_init(void)
 {
     lv_init();
     
-    lv_disp_buf_init(&disp_buf, buf1, buf2, LV_HOR_RES_MAX * 10);
+    /* 只使用单缓冲区，避免双缓冲模式下的死循环问题 */
+    /* 增大缓冲区到 40 行，减少刷新次数，降低 while(vdb->flushing) 阻塞风险 */
+    lv_disp_buf_init(&disp_buf, buf1, NULL, LV_HOR_RES_MAX * 40);
     
     lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
@@ -229,21 +221,47 @@ void lvgl_init(void)
     if (touch_indev) {
         lv_indev_enable(touch_indev, false);
     }
+    
+    /* 创建调试图层 label（在 system layer 上，始终置顶） */
+    dbg_label = lv_label_create(lv_disp_get_layer_sys(NULL), NULL);
+    lv_obj_set_style_local_text_color(dbg_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FF00));
+    lv_obj_set_style_local_text_font(dbg_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &lv_font_montserrat_14);
+    lv_obj_set_pos(dbg_label, 25, 0);
+    lv_label_set_text(dbg_label, "");
 }
 
-/* 触摸中断处理函数 - 在 EXTI 回调中调用 */
+/* 触摸中断处理函数 - 在 EXTI 回调中调用，只设标志 */
 void lvgl_touch_irq_handler(void)
 {
-    if (touch_indev) {
-        lv_indev_enable(touch_indev, true);
-    }
+    touch_irq_flag = true;
 }
 
 /* 触摸释放处理函数 - 在触摸释放后调用 */
 void lvgl_touch_release_handler(void)
 {
+    touch_buf_pressed = false;
     if (touch_indev) {
         lv_indev_enable(touch_indev, false);
+    }
+}
+
+/* 主循环中处理触摸中断标志 - 读取 I2C 并缓存数据 */
+void lvgl_touch_process(void)
+{
+    if (!touch_irq_flag) return;
+    touch_irq_flag = false;
+    
+    ft3168_touch_info_t touch = ft3168_touch_get_info();
+    
+    if (touch.is_touching && touch.points[0].is_valid) {
+        touch_buf_x = touch.points[0].x;
+        touch_buf_y = touch.points[0].y;
+        touch_buf_pressed = true;
+        if (touch_indev) {
+            lv_indev_enable(touch_indev, true);
+        }
+    } else {
+        touch_buf_pressed = false;
     }
 }
 
@@ -252,20 +270,20 @@ void lvgl_tick_handler(uint32_t tick)
     lv_tick_inc(tick);
 }
 
-static volatile bool dbg_show_always = true;
-
 void lvgl_debug_draw(void)
 {
-    if (!debug_enabled) return;
+    if (!debug_enabled || !dbg_label) return;
     
-    static char buf[64] = {0};
-    static uint32_t frame_count = 0;
-    frame_count++;
+    dbg_frame_count++;
     
-    /* 暂时跳过 I2C 读取，只显示帧计数确认 loop 在跑 */
-    snprintf(buf, sizeof(buf), "F%lu UI OK", (unsigned long)frame_count);
-    
-    st7789_draw_debug_text(buf);
+    static char buf[64];
+    if (touch_buf_pressed) {
+        snprintf(buf, sizeof(buf), "F%lu T:%d,%d", 
+                 (unsigned long)dbg_frame_count, (int)touch_buf_x, (int)touch_buf_y);
+    } else {
+        snprintf(buf, sizeof(buf), "F%lu", (unsigned long)dbg_frame_count);
+    }
+    lv_label_set_text(dbg_label, buf);
 }
 
 void lvgl_debug_set_enabled(bool en)

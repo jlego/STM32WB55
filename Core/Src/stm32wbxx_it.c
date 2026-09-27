@@ -214,4 +214,12 @@ void USB_LP_IRQHandler(void)
 
 /* USER CODE BEGIN 1 */
 
+/**
+  * @brief This function handles EXTI line3 interrupt (PA3 - touch INT).
+  */
+void EXTI3_IRQHandler(void)
+{
+  HAL_GPIO_EXTI_IRQHandler(GPIO_PIN_3);
+}
+
 /* USER CODE END 1 */

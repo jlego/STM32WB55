@@ -3,6 +3,7 @@
 #include "ft3168_touch.h"
 #include "stm32wbxx_hal.h"
 #include <string.h>
+#include <stdio.h>
 
 extern SPI_HandleTypeDef hspi1;
 
@@ -10,13 +11,151 @@ static lv_disp_buf_t disp_buf;
 static lv_color_t buf1[LV_HOR_RES_MAX * 100];
 static lv_color_t buf2[LV_HOR_RES_MAX * 50];
 
+static lv_indev_drv_t touch_indev_drv;
+static lv_indev_t *touch_indev = NULL;
+static bool debug_enabled = true;
+static volatile int16_t dbg_x = -1, dbg_y = -1;
+static volatile bool dbg_pressed = false;
+static volatile bool dbg_updated = false;
+
+/* 5x7 ASCII字体位图 */
+static const uint8_t font5x7[][5] = {
+    {0x00,0x00,0x00,0x00,0x00}, /*   */
+    {0x00,0x00,0x5F,0x00,0x00}, /* ! */
+    {0x00,0x07,0x00,0x07,0x00}, /* " */
+    {0x14,0x7F,0x14,0x7F,0x14}, /* # */
+    {0x24,0x2A,0x7F,0x2A,0x12}, /* $ */
+    {0x23,0x13,0x08,0x64,0x62}, /* % */
+    {0x36,0x49,0x55,0x22,0x50}, /* & */
+    {0x00,0x05,0x03,0x00,0x00}, /* ' */
+    {0x00,0x1C,0x22,0x41,0x00}, /* ( */
+    {0x00,0x41,0x22,0x1C,0x00}, /* ) */
+    {0x14,0x08,0x3E,0x08,0x14}, /* * */
+    {0x08,0x08,0x3E,0x08,0x08}, /* + */
+    {0x00,0x50,0x30,0x00,0x00}, /* , */
+    {0x08,0x08,0x08,0x08,0x08}, /* - */
+    {0x00,0x60,0x60,0x00,0x00}, /* . */
+    {0x20,0x10,0x08,0x04,0x02}, /* / */
+    {0x3E,0x51,0x49,0x45,0x3E}, /* 0 */
+    {0x00,0x42,0x7F,0x40,0x00}, /* 1 */
+    {0x42,0x61,0x51,0x49,0x46}, /* 2 */
+    {0x21,0x41,0x45,0x4B,0x31}, /* 3 */
+    {0x18,0x14,0x12,0x7F,0x10}, /* 4 */
+    {0x27,0x45,0x45,0x45,0x39}, /* 5 */
+    {0x3C,0x4A,0x49,0x49,0x30}, /* 6 */
+    {0x01,0x71,0x09,0x05,0x03}, /* 7 */
+    {0x36,0x49,0x49,0x49,0x36}, /* 8 */
+    {0x06,0x49,0x49,0x29,0x1E}, /* 9 */
+    {0x00,0x36,0x36,0x00,0x00}, /* : */
+    {0x00,0x56,0x36,0x00,0x00}, /* ; */
+    {0x08,0x14,0x22,0x41,0x00}, /* < */
+    {0x14,0x14,0x14,0x14,0x14}, /* = */
+    {0x00,0x41,0x22,0x14,0x08}, /* > */
+    {0x02,0x01,0x51,0x09,0x06}, /* ? */
+    {0x32,0x49,0x79,0x41,0x3E}, /* @ */
+    {0x7E,0x11,0x11,0x11,0x7E}, /* A */
+    {0x7F,0x49,0x49,0x49,0x36}, /* B */
+    {0x3E,0x41,0x41,0x41,0x22}, /* C */
+    {0x7F,0x41,0x41,0x22,0x1C}, /* D */
+    {0x7F,0x49,0x49,0x49,0x41}, /* E */
+    {0x7F,0x09,0x09,0x09,0x01}, /* F */
+    {0x3E,0x41,0x49,0x49,0x7A}, /* G */
+    {0x7F,0x08,0x08,0x08,0x7F}, /* H */
+    {0x00,0x41,0x7F,0x41,0x00}, /* I */
+    {0x20,0x40,0x41,0x3F,0x01}, /* J */
+    {0x7F,0x08,0x14,0x22,0x41}, /* K */
+    {0x7F,0x40,0x40,0x40,0x40}, /* L */
+    {0x7F,0x02,0x0C,0x02,0x7F}, /* M */
+    {0x7F,0x04,0x08,0x10,0x7F}, /* N */
+    {0x3E,0x41,0x41,0x41,0x3E}, /* O */
+    {0x7F,0x09,0x09,0x09,0x06}, /* P */
+    {0x3E,0x41,0x51,0x21,0x5E}, /* Q */
+    {0x7F,0x09,0x19,0x29,0x46}, /* R */
+    {0x46,0x49,0x49,0x49,0x31}, /* S */
+    {0x01,0x01,0x7F,0x01,0x01}, /* T */
+    {0x3F,0x40,0x40,0x40,0x3F}, /* U */
+    {0x1F,0x20,0x40,0x20,0x1F}, /* V */
+    {0x3F,0x40,0x38,0x40,0x3F}, /* W */
+    {0x63,0x14,0x08,0x14,0x63}, /* X */
+    {0x07,0x08,0x70,0x08,0x07}, /* Y */
+    {0x61,0x51,0x49,0x45,0x43}, /* Z */
+};
+
+#define DEBUG_BG_X     27
+#define DEBUG_BG_Y     2
+#define DEBUG_BG_W     180
+#define DEBUG_BG_H     14
+
+static void st7789_draw_char(uint16_t x, uint16_t y, char c, uint16_t color)
+{
+    uint8_t idx;
+    if (c >= ' ' && c <= 'z') idx = c - ' ';
+    else if (c == '\n' || c == '\r') return;
+    else idx = 0;
+    
+    for (uint8_t col = 0; col < 5; col++) {
+        uint8_t line = font5x7[idx][col];
+        for (uint8_t row = 0; row < 7; row++) {
+            if (line & (1 << row)) {
+                ST7789_DrawPixel(x + col, y + row, color);
+            }
+        }
+    }
+}
+
+static void st7789_draw_debug_text(const char *str)
+{
+    /* LV_COLOR_16_SWAP=1，所以颜色值需要字节交换：0x07E0 → 0xE007 */
+    uint16_t fg_color = 0xE007;
+    static uint16_t render_buf[DEBUG_BG_W * DEBUG_BG_H];
+    
+    /* 清空渲染缓冲区为黑色 */
+    for (int i = 0; i < DEBUG_BG_W * DEBUG_BG_H; i++) {
+        render_buf[i] = 0x0000;
+    }
+    
+    /* 在内存中渲染字符 */
+    uint16_t str_len = 0;
+    for (uint16_t i = 0; str[i] && i < 30; i++) {
+        char c = str[i];
+        uint8_t idx;
+        if (c >= ' ' && c <= 'z') idx = c - ' ';
+        else if (c == '\n' || c == '\r') continue;
+        else idx = 0;
+        
+        uint16_t char_x = 2 + i * 6;
+        uint16_t char_y = 2;
+        
+        for (uint8_t col = 0; col < 5; col++) {
+            uint8_t line = font5x7[idx][col];
+            for (uint8_t row = 0; row < 7; row++) {
+                if (line & (1 << row)) {
+                    uint16_t px = char_x + col;
+                    uint16_t py = char_y + row;
+                    if (px < DEBUG_BG_W && py < DEBUG_BG_H) {
+                        render_buf[py * DEBUG_BG_W + px] = fg_color;
+                    }
+                }
+            }
+        }
+        str_len++;
+    }
+    
+    /* 批量发送到SPI */
+    ST7789_SetAddressWindow(DEBUG_BG_X, DEBUG_BG_Y, DEBUG_BG_W, DEBUG_BG_H);
+    lcd_dc_set();
+    lcd_cs_clr();
+    HAL_SPI_Transmit(&hspi1, (uint8_t *)render_buf, DEBUG_BG_W * DEBUG_BG_H * 2, 100);
+    lcd_cs_set();
+}
+
 /* 显示刷新回调函数 */
 static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
 {
-    int32_t x, y;
     uint16_t width = area->x2 - area->x1 + 1;
     uint16_t height = area->y2 - area->y1 + 1;
     uint16_t *buf = (uint16_t *)color_p;
+    int32_t total_pixels = width * height;
     
     /* 设置显示窗口 */
     ST7789_SetAddressWindow(area->x1, area->y1, width, height);
@@ -25,13 +164,12 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
     lcd_dc_set();
     lcd_cs_clr();
     
-    /* 发送像素数据 */
-    for (int i = 0; i < width * height; i++) {
-        uint16_t color = buf[i];
-        /* 交换字节顺序，因为LVGL使用RGB565但字节序可能不同 */
-        uint8_t buf_spi[2] = { (uint8_t)((color >> 8) & 0xFF), (uint8_t)(color & 0xFF) };
-        HAL_SPI_Transmit(&hspi1, buf_spi, 2, HAL_MAX_DELAY);
-    }
+    /* 
+     * 批量发送像素数据
+     * LV_COLOR_16_SWAP=1 时，LVGL内部已经是交换后的格式，直接发送即可
+     * 使用50ms超时防止阻塞
+     */
+    HAL_SPI_Transmit(&hspi1, (uint8_t *)buf, total_pixels * 2, 50);
     
     lcd_cs_set();
     
@@ -39,8 +177,7 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
     lv_disp_flush_ready(disp_drv);
 }
 
-/* 触摸读取回调函数 */
-static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
+static bool touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
 {
     ft3168_touch_info_t touch = ft3168_touch_get_info();
     
@@ -50,18 +187,31 @@ static void touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
         data->state = LV_INDEV_STATE_PR;
     } else {
         data->state = LV_INDEV_STATE_REL;
+        /* 触摸释放后禁用输入设备，避免继续调用 */
+        if (touch_indev) {
+            lv_indev_enable(touch_indev, false);
+        }
     }
+    
+    if (debug_enabled) {
+        bool pressed = (data->state == LV_INDEV_STATE_PR);
+        if (pressed != dbg_pressed || (pressed && (data->point.x != dbg_x || data->point.y != dbg_y))) {
+            dbg_x = data->point.x;
+            dbg_y = data->point.y;
+            dbg_pressed = pressed;
+            dbg_updated = true;
+        }
+    }
+    
+    return false;
 }
 
 void lvgl_init(void)
 {
-    /* 初始化LVGL库 */
     lv_init();
     
-    /* 初始化显示缓冲区 */
     lv_disp_buf_init(&disp_buf, buf1, buf2, LV_HOR_RES_MAX * 10);
     
-    /* 注册显示驱动 */
     lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
     disp_drv.flush_cb = disp_flush;
@@ -70,12 +220,31 @@ void lvgl_init(void)
     disp_drv.ver_res = LV_VER_RES_MAX;
     lv_disp_drv_register(&disp_drv);
     
-    /* 注册触摸驱动 */
-    lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.type = LV_INDEV_TYPE_POINTER;
-    indev_drv.read_cb = touchpad_read;
-    lv_indev_drv_register(&indev_drv);
+    lv_indev_drv_init(&touch_indev_drv);
+    touch_indev_drv.type = LV_INDEV_TYPE_POINTER;
+    touch_indev_drv.read_cb = touchpad_read;
+    touch_indev = lv_indev_drv_register(&touch_indev_drv);
+    
+    /* 初始时禁用触摸输入，等待触摸中断触发后再启用 */
+    if (touch_indev) {
+        lv_indev_enable(touch_indev, false);
+    }
+}
+
+/* 触摸中断处理函数 - 在 EXTI 回调中调用 */
+void lvgl_touch_irq_handler(void)
+{
+    if (touch_indev) {
+        lv_indev_enable(touch_indev, true);
+    }
+}
+
+/* 触摸释放处理函数 - 在触摸释放后调用 */
+void lvgl_touch_release_handler(void)
+{
+    if (touch_indev) {
+        lv_indev_enable(touch_indev, false);
+    }
 }
 
 void lvgl_tick_handler(uint32_t tick)
@@ -83,12 +252,23 @@ void lvgl_tick_handler(uint32_t tick)
     lv_tick_inc(tick);
 }
 
-void lvgl_flush_display(void)
+static volatile bool dbg_show_always = true;
+
+void lvgl_debug_draw(void)
 {
-    lv_task_handler();
+    if (!debug_enabled) return;
+    
+    static char buf[64] = {0};
+    static uint32_t frame_count = 0;
+    frame_count++;
+    
+    /* 暂时跳过 I2C 读取，只显示帧计数确认 loop 在跑 */
+    snprintf(buf, sizeof(buf), "F%lu UI OK", (unsigned long)frame_count);
+    
+    st7789_draw_debug_text(buf);
 }
 
-void lvgl_touch_handler(void)
+void lvgl_debug_set_enabled(bool en)
 {
-    /* 触摸处理在lv_task_handler中自动调用 */
+    debug_enabled = en;
 }

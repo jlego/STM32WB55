@@ -117,6 +117,7 @@ static void clock_refresh(lv_task_t *task) {
     (void)task;
     
     if (current_screen != IT_SCREEN_CLOCK) return;
+    if (!clock_ui.label_time || !clock_ui.label_date || !clock_ui.label_steps) return;
     
     /* 更新时间 */
     char time_buf[16];
@@ -538,13 +539,14 @@ static void create_placeholder_screen(it_screen_t screen) {
 
 void infinitime_ui_init(void)
 {
-    /* 初始化LVGL */
+    ft3168_touch_init();
+    
     lvgl_init();
     
-    /* 清屏为黑色 */
     ST7789_FillScreen(COLOR_BLACK);
     
-    /* 创建时钟表盘 (InfiniTime默认首页) */
+    HAL_Delay(100);
+    
     create_clock_screen();
     
     last_activity_time = HAL_GetTick();
@@ -553,6 +555,7 @@ void infinitime_ui_init(void)
 void infinitime_ui_task(void)
 {
     lv_task_handler();
+    lvgl_debug_draw();
     
     /* 检测屏幕超时 - 模拟InfiniTime的自动休眠 */
     uint32_t inactive_time = lv_disp_get_inactive_time(NULL);

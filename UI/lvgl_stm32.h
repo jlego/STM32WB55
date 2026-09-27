@@ -9,8 +9,10 @@ extern "C" {
 
 void lvgl_init(void);
 void lvgl_tick_handler(uint32_t tick);
-void lvgl_flush_display(void);
-void lvgl_touch_handler(void);
+void lvgl_debug_draw(void);
+void lvgl_debug_set_enabled(bool en);
+void lvgl_touch_irq_handler(void);
+void lvgl_touch_release_handler(void);
 
 #ifdef __cplusplus
 }

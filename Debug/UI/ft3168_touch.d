@@ -1,5 +1,5 @@
 UI/ft3168_touch.o: ../UI/ft3168_touch.c ../UI/ft3168_touch.h \
- ../UI/soft_i2c.h ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
  ../Core/Inc/stm32wbxx_hal_conf.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_dma.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_def.h \
@@ -39,10 +39,8 @@ UI/ft3168_touch.o: ../UI/ft3168_touch.c ../UI/ft3168_touch.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
- ../Core/Inc/st7789.h ../Core/Inc/main.h
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h
 ../UI/ft3168_touch.h:
-../UI/soft_i2c.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
 ../Core/Inc/stm32wbxx_hal_conf.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_dma.h:
@@ -84,5 +82,3 @@ UI/ft3168_touch.o: ../UI/ft3168_touch.c ../UI/ft3168_touch.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
-../Core/Inc/st7789.h:
-../Core/Inc/main.h:

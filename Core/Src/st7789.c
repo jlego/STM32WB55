@@ -56,7 +56,7 @@ void ST7789_Delay(uint32_t ms) {
 
 // 使用硬件SPI传输数据
 static void ST7789_WriteSPI(uint8_t data) {
-    HAL_SPI_Transmit(&hspi1, &data, 1, HAL_MAX_DELAY);
+    HAL_SPI_Transmit(&hspi1, &data, 1, 10);
 }
 
 void ST7789_WriteCommand(uint8_t cmd) {
@@ -121,7 +121,7 @@ void ST7789_FillScreen(uint16_t color) {
     
     uint8_t colorBytes[2] = {(color >> 8) & 0xFF, color & 0xFF};
     for(uint32_t i = 0; i < (uint32_t)DISPLAY_WIDTH * DISPLAY_HEIGHT; i++) {
-        HAL_SPI_Transmit(&hspi1, colorBytes, 2, HAL_MAX_DELAY);
+        HAL_SPI_Transmit(&hspi1, colorBytes, 2, 10);
     }
     
     // 拉高CS禁用

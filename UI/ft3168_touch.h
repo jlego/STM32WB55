@@ -20,13 +20,28 @@ extern "C" {
 #define FT3168_REG_TOUCH2_XL    0x0A
 #define FT3168_REG_TOUCH2_YH    0x0B
 #define FT3168_REG_TOUCH2_YL    0x0C
+#define FT3168_REG_THRESHOLD    0x80
+#define FT3168_REG_MONITOR_TIME 0x87
+#define FT3168_REG_PERIOD_ACTIVE 0x88
+#define FT3168_REG_PERIOD_MONITOR 0x89
 #define FT3168_REG_CHIP_ID      0xA3
+#define FT3168_REG_VENDOR1_ID   0xA8
+#define FT3168_REG_ERROR_STATUS 0xA9
 #define FT3168_REG_FIRMWARE_ID  0xA6
+#define FT3168_REG_POWER_MODE   0xA5
+#define FT3168_REG_INT_STATUS   0xA4
 #define FT3168_REG_RELEASE_CODE 0xAF
 #define FT3168_REG_COUNTRY_CODE 0xAE
 
 /* FT3168 I2C地址 */
 #define FT3168_I2C_ADDR         0x38
+
+/* FocalTech芯片ID */
+#define FT6206_CHIP_ID          0x06
+#define FT3267_CHIP_ID          0x33
+#define FT6236_CHIP_ID          0x36
+#define FT6236U_CHIP_ID         0x64
+#define FT5206U_CHIP_ID         0x64
 
 /* 触摸状态 */
 #define FT3168_TOUCH_EVENT_DOWN 0x00
@@ -81,6 +96,12 @@ bool ft3168_touch_exit_factory_mode(void);
 
 /* 设置中断模式 */
 void ft3168_touch_set_interrupt_mode(uint8_t mode);
+
+/* 触摸休眠 */
+void ft3168_touch_sleep(void);
+
+/* 触摸唤醒 */
+void ft3168_touch_wakeup(void);
 
 #ifdef __cplusplus
 }

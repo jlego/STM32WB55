@@ -45,6 +45,7 @@
 I2C_HandleTypeDef hi2c1;
 
 SPI_HandleTypeDef hspi1;
+DMA_HandleTypeDef hdma_spi1_tx;
 
 TIM_HandleTypeDef htim2;
 
@@ -56,6 +57,7 @@ TIM_HandleTypeDef htim2;
 void SystemClock_Config(void);
 void PeriphCommonClock_Config(void);
 static void MX_GPIO_Init(void);
+static void MX_DMA_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_I2C1_Init(void);
 static void MX_TIM2_Init(void);
@@ -100,6 +102,7 @@ int main(void)
 
   /* Initialize all configured peripherals */
   MX_GPIO_Init();
+  MX_DMA_Init();
   MX_USB_Device_Init();
   MX_SPI1_Init();
   MX_I2C1_Init();
@@ -117,11 +120,17 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   
+  /* 外部心跳计数声明 */
+  extern volatile uint32_t g_heartbeat;
+  volatile uint32_t main_heartbeat = 0;
+  
   while (1)
   {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    main_heartbeat++;
+    
     /* 更新背光软件PWM */
     ST7789_BacklightTick();
     
@@ -367,6 +376,23 @@ static void MX_TIM2_Init(void)
 }
 
 /**
+  * Enable DMA controller clock
+  */
+static void MX_DMA_Init(void)
+{
+
+  /* DMA controller clock enable */
+  __HAL_RCC_DMAMUX1_CLK_ENABLE();
+  __HAL_RCC_DMA1_CLK_ENABLE();
+
+  /* DMA interrupt init */
+  /* DMA1_Channel1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Channel1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Channel1_IRQn);
+
+}
+
+/**
   * @brief GPIO Initialization Function
   * @param None
   * @retval None
@@ -449,11 +475,11 @@ void Error_Handler(void)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
   /* User can add his own implementation to report the HAL error return state */
-  __disable_irq();
-  /* 用户自定义初始化，可放在 while(1) 之前 */
+  /* 注意：不要禁用中断，让调试信息继续更新 */
+  /* __disable_irq(); */  /* 注释掉，避免系统完全卡死 */
   while (1)
   {
-    //
+    /* 错误处理循环，但保持中断启用 */
   }
   /* USER CODE END Error_Handler_Debug */
 }

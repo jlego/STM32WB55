@@ -166,6 +166,12 @@ void lv_task_enable(bool en);
 uint8_t lv_task_get_idle(void);
 
 /**
+ * Get lv_task_handler call count
+ * @return the call count
+ */
+uint32_t lv_task_handler_get_count(void);
+
+/**
  * Iterate through the tasks
  * @param task NULL to start iteration or the previous return value to get the next task
  * @return the next task or NULL if there is no more task

@@ -14,6 +14,7 @@ void lvgl_debug_set_enabled(bool en);
 void lvgl_touch_irq_handler(void);
 void lvgl_touch_release_handler(void);
 void lvgl_touch_process(void);
+uint32_t lvgl_get_spi_err_count(void);
 
 #ifdef __cplusplus
 }

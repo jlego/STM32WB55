@@ -559,30 +559,89 @@ void infinitime_ui_init(void)
     last_activity_time = HAL_GetTick();
 }
 
+/* 调试用全局变量 */
+static uint32_t g_ui_task_count = 0;
+static uint32_t g_frame_count = 0;
+static uint32_t g_max_handler_time = 0;
+static volatile uint32_t g_heartbeat = 0; /* 心跳计数，用于确认系统是否存活 */
+static uint32_t g_main_loop_count = 0; /* 主循环计数器 */
+volatile uint32_t g_debug_stage = 0; /* 调试：记录最后执行到的阶段 */
+
 void infinitime_ui_task(void)
 {
-    /* 先处理触摸中断标志（读 I2C + 缓存数据），再让 LVGL 处理 */
-    lvgl_touch_process();
+    static uint32_t last_tick = 0;
     
-    lv_task_handler();
+    g_ui_task_count++;
+    g_main_loop_count++;
+    g_frame_count++;
+    g_heartbeat++; /* 心跳递增 */
+    g_debug_stage = 1; /* 阶段1：进入UI任务 */
+    uint32_t current_tick = HAL_GetTick();
     
-    /* 更新调试图层（帧计数 + 触摸坐标），通过 LVGL label 走正常刷新 */
-    lvgl_debug_draw();
+    /* 调试：在 lv_task_handler 前后标记 */
+    g_debug_stage = 4; /* 阶段4：准备调用lv_task_handler */
+    uint32_t before_handler = HAL_GetTick();
+    uint32_t next_run = lv_task_handler();
+    g_debug_stage = 5; /* 阶段5：lv_task_handler完成 */
+    uint32_t after_handler = HAL_GetTick();
+    uint32_t handler_time = after_handler - before_handler;
+    
+    if (handler_time > g_max_handler_time) {
+        g_max_handler_time = handler_time;
+    }
+    
+    /* 在lv_task_handler之后创建调试任务 */
+    if (g_ui_task_count == 1) {
+        lvgl_debug_set_enabled(true);
+        lvgl_debug_draw(); /* 创建异步任务 */
+    }
+    
+    /* 不再每次都调用lvgl_debug_draw()，让LVGL自然刷新 */
     
     /* 检测屏幕超时 - 模拟InfiniTime的自动休眠 */
-    uint32_t inactive_time = lv_disp_get_inactive_time(NULL);
-    if (inactive_time > 30000 && !is_dimmed) {
-        is_dimmed = true;
-        ST7789_SetBacklight(5);
-    } else if (inactive_time < 30000 && is_dimmed) {
-        is_dimmed = false;
-        ST7789_SetBacklight(10);
-    }
+    // uint32_t inactive_time = lv_disp_get_inactive_time(NULL);
+    // if (inactive_time > 30000 && !is_dimmed) {
+    //     is_dimmed = true;
+    //     ST7789_SetBacklight(5);
+    // } else if (inactive_time < 30000 && is_dimmed) {
+    //     is_dimmed = false;
+    //     ST7789_SetBacklight(10);
+    // }
     
-    /* 触摸释放后禁用触摸输入 */
-    if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
-        lvgl_touch_release_handler();
-    }
+    /* 暂时禁用触摸释放处理 - 调试用 */
+    // if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
+    //     lvgl_touch_release_handler();
+    // }
+}
+
+uint32_t get_ui_frame_count(void)
+{
+    return g_frame_count;
+}
+
+uint32_t get_max_handler_time(void)
+{
+    return g_max_handler_time;
+}
+
+uint32_t get_heartbeat(void)
+{
+    return g_heartbeat;
+}
+
+uint32_t get_main_loop_count(void)
+{
+    return g_main_loop_count;
+}
+
+uint32_t get_debug_stage(void)
+{
+    return g_debug_stage;
+}
+
+void set_debug_stage(uint32_t stage)
+{
+    g_debug_stage = stage;
 }
 
 it_touch_info_t infinitime_get_touch_info(void)

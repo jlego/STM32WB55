@@ -339,10 +339,10 @@ typedef void* lv_indev_drv_user_data_t;            /*Type of user data in the in
 #if LV_USE_DEBUG
 
 /*Check if the parameter is NULL. (Quite fast) */
-#define LV_USE_ASSERT_NULL      1
+#define LV_USE_ASSERT_NULL      0
 
 /*Checks is the memory is successfully allocated or no. (Quite fast)*/
-#define LV_USE_ASSERT_MEM       1
+#define LV_USE_ASSERT_MEM       0
 
 /*Check the integrity of `lv_mem` after critical operations. (Slow)*/
 #define LV_USE_ASSERT_MEM_INTEGRITY       0

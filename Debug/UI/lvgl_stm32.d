@@ -130,8 +130,8 @@ UI/lvgl_stm32.o: ../UI/lvgl_stm32.c ../UI/lvgl_stm32.h ../UI/lvgl/lvgl.h \
  ../UI/lvgl/src/lv_widgets/lv_spinbox.h \
  ../UI/lvgl/src/lv_draw/lv_img_cache.h \
  ../UI/lvgl/src/lv_draw/lv_img_decoder.h ../UI/lvgl/src/lv_api_map.h \
- ../UI/lvgl/src/../lvgl.h ../Core/Inc/st7789.h ../Core/Inc/main.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
+ ../UI/lvgl/src/../lvgl.h ../UI/infinitime_adapter.h ../Core/Inc/st7789.h \
+ ../Core/Inc/main.h ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
  ../Core/Inc/stm32wbxx_hal_conf.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_dma.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_def.h \
@@ -172,7 +172,7 @@ UI/lvgl_stm32.o: ../UI/lvgl_stm32.c ../UI/lvgl_stm32.h ../UI/lvgl/lvgl.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
- ../UI/ft3168_touch.h
+ ../UI/ft3168_touch.h ../Core/Inc/stm32wbxx_it.h
 ../UI/lvgl_stm32.h:
 ../UI/lvgl/lvgl.h:
 ../UI/lvgl/src/lv_misc/lv_log.h:
@@ -328,6 +328,7 @@ UI/lvgl_stm32.o: ../UI/lvgl_stm32.c ../UI/lvgl_stm32.h ../UI/lvgl/lvgl.h \
 ../UI/lvgl/src/lv_draw/lv_img_decoder.h:
 ../UI/lvgl/src/lv_api_map.h:
 ../UI/lvgl/src/../lvgl.h:
+../UI/infinitime_adapter.h:
 ../Core/Inc/st7789.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:
@@ -372,3 +373,4 @@ UI/lvgl_stm32.o: ../UI/lvgl_stm32.c ../UI/lvgl_stm32.h ../UI/lvgl/lvgl.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
 ../UI/ft3168_touch.h:
+../Core/Inc/stm32wbxx_it.h:

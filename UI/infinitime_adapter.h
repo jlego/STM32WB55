@@ -84,6 +84,13 @@ void infinitime_set_steps(uint32_t steps);
 /* 模拟心率更新 */
 void infinitime_set_heart_rate(uint8_t bpm);
 
+/* 获取调试信息 */
+uint32_t get_main_loop_count(void);
+uint32_t get_debug_stage(void);
+
+/* 调试阶段变量 - 供lvgl_stm32.c直接访问 */
+extern volatile uint32_t g_debug_stage;
+
 #ifdef __cplusplus
 }
 #endif

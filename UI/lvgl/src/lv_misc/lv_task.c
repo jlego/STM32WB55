@@ -38,6 +38,8 @@ static uint8_t idle_last = 0;
 static bool task_deleted;
 static bool task_list_changed;
 static bool task_created;
+static volatile uint32_t task_handler_count = 0;
+static bool task_handler_running = false;
 
 /**********************
  *      MACROS
@@ -70,6 +72,8 @@ LV_ATTRIBUTE_TASK_HANDLER uint32_t lv_task_handler(void)
     static bool already_running = false;
     if(already_running) return 1;
     already_running = true;
+    task_handler_running = true;
+    task_handler_count++;
 
     if(lv_task_run == false) {
         already_running = false; /*Release mutex*/
@@ -176,10 +180,23 @@ LV_ATTRIBUTE_TASK_HANDLER uint32_t lv_task_handler(void)
     }
 
     already_running = false; /*Release the mutex*/
+    task_handler_running = false;
 
     LV_LOG_TRACE("lv_task_handler ready");
     return time_till_next;
 }
+
+uint32_t lv_task_handler_get_count(void)
+{
+    return task_handler_count;
+}
+
+bool lv_task_handler_is_running(void)
+{
+    extern bool already_running;
+    return already_running;
+}
+
 /**
  * Create an "empty" task. It needs to initialized with at least
  * `lv_task_set_cb` and `lv_task_set_period`

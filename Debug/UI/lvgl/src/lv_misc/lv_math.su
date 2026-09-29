@@ -1,6 +1,0 @@
-../UI/lvgl/src/lv_misc/lv_math.c:51:31:_lv_trigo_sin	24	static
-../UI/lvgl/src/lv_misc/lv_math.c:86:10:_lv_bezier3	64	static
-../UI/lvgl/src/lv_misc/lv_math.c:112:28:_lv_sqrt	32	static
-../UI/lvgl/src/lv_misc/lv_math.c:135:10:_lv_atan2	40	static
-../UI/lvgl/src/lv_misc/lv_math.c:219:9:_lv_pow	48	static
-../UI/lvgl/src/lv_misc/lv_math.c:241:9:_lv_map	32	static

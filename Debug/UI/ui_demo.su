@@ -1,3 +1,0 @@
-../UI/lvgl/src/lv_core/lv_disp.h:158:26:lv_scr_act	8	static
-../UI/ui_demo.c:8:6:ui_demo_init	32	static
-../UI/ui_demo.c:35:6:ui_demo_run	8	static

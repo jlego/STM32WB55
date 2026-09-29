@@ -1,4 +1,0 @@
-../UI/lvgl/src/lv_themes/../../src/lv_misc/lv_mem.h:183:20:_lv_memset_00	16	static
-../UI/lvgl/src/lv_themes/../../src/lv_core/lv_obj_style_dec.h:102:1:lv_style_set_bg_opa	16	static
-../UI/lvgl/src/lv_themes/lv_theme_empty.c:60:14:lv_theme_empty_init	24	static
-../UI/lvgl/src/lv_themes/lv_theme_empty.c:94:13:theme_apply	24	static

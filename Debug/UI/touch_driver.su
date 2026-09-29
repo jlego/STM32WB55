@@ -1,7 +1,0 @@
-../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_bus.h:539:22:LL_AHB2_GRP1_EnableClock	24	static
-../UI/touch_driver.c:40:13:ft6x36_i2c_read	40	static
-../UI/touch_driver.c:48:13:ft6x36_i2c_write	40	static
-../UI/touch_driver.c:56:6:touch_init	32	static
-../UI/touch_driver.c:103:14:touch_get_info	48	static
-../UI/touch_driver.c:143:6:touch_sleep	16	static
-../UI/touch_driver.c:150:6:touch_wakeup	16	static

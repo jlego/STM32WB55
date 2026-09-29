@@ -542,14 +542,15 @@ void lvgl_init(void)
         lv_indev_enable(touch_indev, false);
     }
     
-    /* 创建调试图层 label（在 system layer 上，始终置顶） */
-    dbg_label = lv_label_create(lv_disp_get_layer_sys(NULL), NULL);
+    /* 禁用调试图层 label */
+    /* dbg_label = lv_label_create(lv_disp_get_layer_sys(NULL), NULL);
     lv_obj_set_style_local_text_color(dbg_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FF00));
     lv_obj_set_style_local_text_font(dbg_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &lv_font_montserrat_14);
     lv_obj_set_pos(dbg_label, 25, 5);
     lv_label_set_long_mode(dbg_label, LV_LABEL_LONG_BREAK);
     lv_obj_set_size(dbg_label, lv_disp_get_hor_res(NULL) - 30, 60);
-    lv_label_set_text(dbg_label, "");
+    lv_label_set_text(dbg_label, ""); */
+    dbg_label = NULL;
 }
 
 /* 触摸中断处理函数 - 在 EXTI 回调中调用，只设标志 */

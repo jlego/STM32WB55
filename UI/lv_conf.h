@@ -292,10 +292,15 @@ typedef void* lv_img_decoder_user_data_t;
 
 /* 1: use a custom tick source.
  * It removes the need to manually update the tick with `lv_tick_inc`) */
-#define LV_TICK_CUSTOM     1
+#define LV_TICK_CUSTOM     0
 #if LV_TICK_CUSTOM == 1
+#ifdef LVGL_SIMULATOR
+#define LV_TICK_CUSTOM_INCLUDE  <SDL2/SDL.h>
+#define LV_TICK_CUSTOM_SYS_TIME_EXPR (SDL_GetTicks())
+#else
 #define LV_TICK_CUSTOM_INCLUDE  "stm32wbxx_hal.h"  /*Header for the system time function*/
 #define LV_TICK_CUSTOM_SYS_TIME_EXPR (HAL_GetTick()) /*Expression evaluating to current system time in ms*/
+#endif
 #endif   /*LV_TICK_CUSTOM*/
 
 typedef void* lv_disp_drv_user_data_t;             /*Type of user data in the display driver*/
@@ -416,7 +421,8 @@ typedef void* lv_indev_drv_user_data_t;            /*Type of user data in the in
                                LV_FONT_DECLARE(jetbrains_mono_extrabold_compressed) \
                                LV_FONT_DECLARE(jetbrains_mono_42) \
                                LV_FONT_DECLARE(jetbrains_mono_76) \
-                               LV_FONT_DECLARE(open_sans_light)
+                               LV_FONT_DECLARE(open_sans_light) \
+                               LV_FONT_DECLARE(fontawesome_weathericons)
 
 /* Enable it if you have fonts with a lot of characters.
  * The limit depends on the font size, font face and bpp

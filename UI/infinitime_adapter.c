@@ -1,11 +1,28 @@
 #include "infinitime_adapter.h"
+#include "infinitime_bridge.h"
+#ifndef LVGL_SIMULATOR
 #include "lvgl_stm32.h"
 #include "st7789.h"
 #include "ft3168_touch.h"
+#endif
 #include "lvgl/lvgl.h"
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+
+/* ========== InfiniTime 主题颜色 (对应 Colors.h) ========== */
+#define IT_COLOR_DEEP_ORANGE   LV_COLOR_MAKE(0xff, 0x40, 0x0)
+#define IT_COLOR_ORANGE        LV_COLOR_MAKE(0xff, 0xb0, 0x0)
+#define IT_COLOR_GREEN         LV_COLOR_MAKE(0x0, 0xb0, 0x0)
+#define IT_COLOR_BLUE          LV_COLOR_MAKE(0x0, 0x50, 0xff)
+#define IT_COLOR_LIGHT_GRAY    LV_COLOR_MAKE(0xb0, 0xb0, 0xb0)
+#define IT_COLOR_GRAY          LV_COLOR_MAKE(0x50, 0x50, 0x50)
+#define IT_COLOR_BG            LV_COLOR_MAKE(0x5d, 0x69, 0x7e)
+#define IT_COLOR_BG_ALT        LV_COLOR_MAKE(0x38, 0x38, 0x38)
+#define IT_COLOR_BG_DARK       LV_COLOR_MAKE(0x18, 0x18, 0x18)
+#define IT_COLOR_HIGHLIGHT     IT_COLOR_GREEN
+#define IT_COLOR_HEART_RED     LV_COLOR_MAKE(0xCE, 0x1B, 0x1B)
+#define IT_COLOR_STEP_CYAN     LV_COLOR_MAKE(0x00, 0xFF, 0xE7)
 
 /* ========== InfiniTime符号定义 (对应Symbols.h) ========== */
 #define SYM_BATTERY_HALF       "\xEF\x89\x82"
@@ -66,9 +83,8 @@ static struct {
 /* ========== 应用列表(Launcher)UI对象 ========== */
 static struct {
     lv_obj_t *tileview;
-    lv_obj_t **tiles;
-    lv_obj_t **labels;
-    lv_obj_t **icons;
+    lv_obj_t *btnm[2];  /* 两页 btnmatrix */
+    int current_page;
 } launcher_ui = {0};
 
 /* ========== 快捷设置UI对象 ========== */
@@ -91,6 +107,9 @@ static struct {
 /* ========== 秒表UI对象 ========== */
 static struct {
     lv_obj_t *label_time;
+    lv_obj_t *label_msec;
+    lv_obj_t *label_lap;
+    lv_obj_t *label_play;
     lv_obj_t *btn_start;
     lv_obj_t *btn_lap;
     lv_obj_t *btn_reset;
@@ -205,11 +224,30 @@ static void stopwatch_btn_cb(lv_obj_t *btn, lv_event_t event) {
     
     if (btn == stopwatch_ui.btn_start) {
         stopwatch_ui.running = !stopwatch_ui.running;
-        lv_label_set_text(stopwatch_ui.btn_start, stopwatch_ui.running ? SYM_PAUSE : SYM_PLAY);
-    } else if (btn == stopwatch_ui.btn_reset) {
-        stopwatch_ui.elapsed_ms = 0;
-        stopwatch_ui.running = false;
-        lv_label_set_text(stopwatch_ui.btn_start, SYM_PLAY);
+        if (stopwatch_ui.running) {
+            lv_label_set_text(stopwatch_ui.label_play, SYM_PAUSE);
+            lv_obj_set_state(stopwatch_ui.btn_lap, LV_STATE_DEFAULT);
+        } else {
+            lv_label_set_text(stopwatch_ui.label_play, SYM_PLAY);
+            lv_obj_set_state(stopwatch_ui.btn_lap, LV_STATE_DISABLED);
+        }
+    } else if (btn == stopwatch_ui.btn_lap) {
+        if (stopwatch_ui.running) {
+            /* 计次 */
+            uint32_t ms = stopwatch_ui.elapsed_ms % 1000;
+            uint32_t s = (stopwatch_ui.elapsed_ms / 1000) % 60;
+            uint32_t m = stopwatch_ui.elapsed_ms / 60000;
+            char lap_buf[32];
+            snprintf(lap_buf, sizeof(lap_buf), "Lap: %02lu:%02lu.%02lu", (unsigned long)m, (unsigned long)s, (unsigned long)(ms / 10));
+            lv_label_set_text(stopwatch_ui.label_lap, lap_buf);
+        } else {
+            /* 停止并重置 */
+            stopwatch_ui.elapsed_ms = 0;
+            lv_label_set_text(stopwatch_ui.label_time, "00:00");
+            lv_label_set_text(stopwatch_ui.label_msec, "00");
+            lv_label_set_text(stopwatch_ui.label_lap, "");
+            lv_label_set_text(stopwatch_ui.label_play, SYM_PLAY);
+        }
     }
 }
 
@@ -223,34 +261,47 @@ static void stopwatch_task_cb(lv_task_t *task) {
     uint32_t s = (stopwatch_ui.elapsed_ms / 1000) % 60;
     uint32_t m = stopwatch_ui.elapsed_ms / 60000;
     
-    char buf[32];
-    snprintf(buf, sizeof(buf), "%02lu:%02lu.%02lu", (unsigned long)m, (unsigned long)s, (unsigned long)(ms / 10));
-    lv_label_set_text(stopwatch_ui.label_time, buf);
+    /* 更新主时间显示 */
+    char time_buf[16];
+    snprintf(time_buf, sizeof(time_buf), "%02lu:%02lu", (unsigned long)m, (unsigned long)s);
+    lv_label_set_text(stopwatch_ui.label_time, time_buf);
+    
+    /* 更新百分秒 */
+    char msec_buf[8];
+    snprintf(msec_buf, sizeof(msec_buf), "%02lu", (unsigned long)(ms / 10));
+    lv_label_set_text(stopwatch_ui.label_msec, msec_buf);
 }
 
-/* 应用图标点击回调 */
-static void app_tile_cb(lv_obj_t *btn, lv_event_t event) {
-    if (event != LV_EVENT_CLICKED) return;
+/* 应用图标点击回调 (btnmatrix 事件) */
+void app_tile_cb(lv_obj_t *btnm, lv_event_t event) {
+    if (event != LV_EVENT_VALUE_CHANGED) return;
     
-    for (int i = 0; i < 12; i++) {
-        if (launcher_ui.tiles && btn == launcher_ui.tiles[i]) {
-            switch (i) {
-                case 0: switch_screen(IT_SCREEN_NOTIFICATIONS); break;
-                case 1: switch_screen(IT_SCREEN_STOPWATCH); break;
-                case 2: switch_screen(IT_SCREEN_TIMER); break;
-                case 3: switch_screen(IT_SCREEN_MUSIC); break;
-                case 4: switch_screen(IT_SCREEN_NAVIGATION); break;
-                case 5: switch_screen(IT_SCREEN_METRONOME); break;
-                case 6: switch_screen(IT_SCREEN_WEATHER); break;
-                case 7: switch_screen(IT_SCREEN_BATTERY_INFO); break;
-                case 8: switch_screen(IT_SCREEN_SYSTEM_INFO); break;
-                case 9: switch_screen(IT_SCREEN_FLASHLIGHT); break;
-                case 10: switch_screen(IT_SCREEN_PADDLE); break;
-                case 11: switch_screen(IT_SCREEN_DICE); break;
-                default: break;
-            }
-            return;
-        }
+    uint32_t btn_id = lv_btnmatrix_get_active_btn(btnm);
+    
+    /* 根据当前页和按钮 ID 确定应用 */
+    int app_index = -1;
+    if (launcher_ui.current_page == 0) {
+        app_index = btn_id;  /* 0-5 */
+    } else if (launcher_ui.current_page == 1) {
+        app_index = btn_id + 6;  /* 6-11 */
+    }
+    
+    if (app_index < 0 || app_index >= 12) return;
+    
+    switch (app_index) {
+        case 0: switch_screen(IT_SCREEN_NOTIFICATIONS); break;
+        case 1: switch_screen(IT_SCREEN_STOPWATCH); break;
+        case 2: switch_screen(IT_SCREEN_TIMER); break;
+        case 3: switch_screen(IT_SCREEN_MUSIC); break;
+        case 4: switch_screen(IT_SCREEN_NAVIGATION); break;
+        case 5: switch_screen(IT_SCREEN_METRONOME); break;
+        case 6: switch_screen(IT_SCREEN_WEATHER); break;
+        case 7: switch_screen(IT_SCREEN_BATTERY_INFO); break;
+        case 8: switch_screen(IT_SCREEN_SYSTEM_INFO); break;
+        case 9: switch_screen(IT_SCREEN_FLASHLIGHT); break;
+        case 10: switch_screen(IT_SCREEN_PADDLE); break;
+        case 11: switch_screen(IT_SCREEN_DICE); break;
+        default: break;
     }
 }
 
@@ -262,9 +313,13 @@ static void qs_btn_cb(lv_obj_t *btn, lv_event_t event) {
         static int level = 0;
         level = (level + 1) % 3;
         const char *syms[] = {SYM_BRIGHTNESS_LOW, SYM_BRIGHTNESS_MEDIUM, SYM_BRIGHTNESS_HIGH};
+#ifndef LVGL_SIMULATOR
         uint8_t vals[] = {10, 50, 100};
+#endif
         lv_label_set_text(quick_settings_ui.label_brightness, syms[level]);
+#ifndef LVGL_SIMULATOR
         ST7789_SetBacklight(vals[level]);
+#endif
     } else if (btn == quick_settings_ui.btn_bluetooth) {
         static bool bt_on = true;
         bt_on = !bt_on;
@@ -276,103 +331,102 @@ static void qs_btn_cb(lv_obj_t *btn, lv_event_t event) {
     }
 }
 
-/* ========== 创建时钟表盘 (WatchFaceDigital) ========== */
+/* ========== 创建时钟表盘 (WatchFaceDigital) - 完全参考 InfiniTime ========== */
 static void create_clock_screen(void) {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_local_bg_color(scr, LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
     lv_obj_clean(scr);
     
-    /* 暂时不使用lv_page，直接在屏幕上创建对象测试 */
-    
-    /* 时间 - 中央 (使用系统默认字体) */
-    clock_ui.label_time = lv_label_create(scr, NULL);
-    lv_label_set_text(clock_ui.label_time, "12:00");
-    lv_obj_set_style_local_text_font(clock_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &lv_font_montserrat_48);
-    lv_obj_set_style_local_text_color(clock_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
-    lv_obj_set_pos(clock_ui.label_time, 60, 80);
-    
-    /* 日期 - 时间下方 */
-    clock_ui.label_date = lv_label_create(scr, NULL);
-    lv_label_set_text(clock_ui.label_date, "Sun 1 Jan 2025");
-    lv_obj_set_pos(clock_ui.label_date, 50, 160);
-    lv_obj_set_style_local_text_color(clock_ui.label_date, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x999999));
-    
-    /* 心率图标 - 左下 */
-    clock_ui.label_heart = lv_label_create(scr, NULL);
-    lv_label_set_text_static(clock_ui.label_heart, SYM_HEART_BEAT);
-    lv_obj_set_style_local_text_color(clock_ui.label_heart, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xCE1B1B));
-    lv_obj_set_pos(clock_ui.label_heart, 10, 240);
-    
-    /* 心率值 */
-    clock_ui.label_heart_val = lv_label_create(scr, NULL);
-    lv_label_set_text_static(clock_ui.label_heart_val, "");
-    lv_obj_set_style_local_text_color(clock_ui.label_heart_val, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0xCE1B1B));
-    lv_obj_set_pos(clock_ui.label_heart_val, 40, 240);
-    
-    /* 步数图标 - 右下 */
-    clock_ui.label_step_icon = lv_label_create(scr, NULL);
-    lv_obj_set_style_local_text_color(clock_ui.label_step_icon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FFE7));
-    lv_label_set_text_static(clock_ui.label_step_icon, SYM_SHOE);
-    lv_obj_set_pos(clock_ui.label_step_icon, 140, 240);
-    
-    /* 步数值 */
-    clock_ui.label_steps = lv_label_create(scr, NULL);
-    lv_obj_set_style_local_text_color(clock_ui.label_steps, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FFE7));
-    lv_label_set_text_static(clock_ui.label_steps, "0");
-    lv_obj_set_pos(clock_ui.label_steps, 170, 240);
-    
-    /* 通知图标（隐藏） */
+    /* 通知图标 - 左上角 (对应 InfiniTime notificationIcon) */
     clock_ui.label_bell = lv_label_create(scr, NULL);
     lv_label_set_text_static(clock_ui.label_bell, "");
-    lv_obj_set_pos(clock_ui.label_bell, 10, 10);
-    lv_obj_set_hidden(clock_ui.label_bell, true);
+    lv_obj_set_style_local_text_color(clock_ui.label_bell, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_LIME);
+    lv_obj_align(clock_ui.label_bell, NULL, LV_ALIGN_IN_TOP_LEFT, 0, 0);
+    
+    /* 时间 - 右侧中央 (对应 InfiniTime label_time, 使用 jetbrains_mono_extrabold_compressed) */
+    clock_ui.label_time = lv_label_create(scr, NULL);
+    lv_label_set_text(clock_ui.label_time, "12:00");
+    lv_obj_set_style_local_text_font(clock_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_extrabold_compressed);
+    lv_obj_set_style_local_text_color(clock_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+    lv_obj_align(clock_ui.label_time, scr, LV_ALIGN_IN_RIGHT_MID, 0, 0);
+    
+    /* 日期 - 中央偏下 (对应 InfiniTime label_date) */
+    clock_ui.label_date = lv_label_create(scr, NULL);
+    lv_label_set_text(clock_ui.label_date, "Sun 1 Jan 2025");
+    lv_obj_align(clock_ui.label_date, scr, LV_ALIGN_CENTER, 0, 60);
+    lv_obj_set_style_local_text_color(clock_ui.label_date, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_LIGHT_GRAY);
+    
+    /* 心率图标 - 左下角 (对应 InfiniTime heartbeatIcon) */
+    clock_ui.label_heart = lv_label_create(scr, NULL);
+    lv_label_set_text_static(clock_ui.label_heart, SYM_HEART_BEAT);
+    lv_obj_set_style_local_text_color(clock_ui.label_heart, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_HEART_RED);
+    lv_obj_align(clock_ui.label_heart, scr, LV_ALIGN_IN_BOTTOM_LEFT, 0, 0);
+    
+    /* 心率值 (对应 InfiniTime heartbeatValue) */
+    clock_ui.label_heart_val = lv_label_create(scr, NULL);
+    lv_label_set_text_static(clock_ui.label_heart_val, "");
+    lv_obj_set_style_local_text_color(clock_ui.label_heart_val, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_HEART_RED);
+    lv_obj_align(clock_ui.label_heart_val, clock_ui.label_heart, LV_ALIGN_OUT_RIGHT_MID, 5, 0);
+    
+    /* 步数值 - 右下角 (对应 InfiniTime stepValue) */
+    clock_ui.label_steps = lv_label_create(scr, NULL);
+    lv_label_set_text_static(clock_ui.label_steps, "0");
+    lv_obj_set_style_local_text_color(clock_ui.label_steps, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_STEP_CYAN);
+    lv_obj_align(clock_ui.label_steps, scr, LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
+    
+    /* 步数图标 (对应 InfiniTime stepIcon) */
+    clock_ui.label_step_icon = lv_label_create(scr, NULL);
+    lv_label_set_text_static(clock_ui.label_step_icon, SYM_SHOE);
+    lv_obj_set_style_local_text_color(clock_ui.label_step_icon, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_STEP_CYAN);
+    lv_obj_align(clock_ui.label_step_icon, clock_ui.label_steps, LV_ALIGN_OUT_LEFT_MID, -5, 0);
+    
+    /* 天气图标和温度 (占位，对应 InfiniTime weatherIcon 和 temperature) */
+    clock_ui.label_weather = lv_label_create(scr, NULL);
+    lv_label_set_text(clock_ui.label_weather, "");
+    lv_obj_set_style_local_text_color(clock_ui.label_weather, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x999999));
+    lv_obj_align(clock_ui.label_weather, scr, LV_ALIGN_IN_TOP_MID, -20, 50);
+    
+    clock_ui.label_temp = lv_label_create(scr, NULL);
+    lv_label_set_text(clock_ui.label_temp, "");
+    lv_obj_set_style_local_text_color(clock_ui.label_temp, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x999999));
+    lv_obj_align(clock_ui.label_temp, scr, LV_ALIGN_IN_TOP_MID, 20, 50);
     
     /* 创建定时刷新任务 */
     clock_ui.task_refresh = lv_task_create(clock_refresh, 1000, LV_TASK_PRIO_MID, NULL);
 }
 
-/* ========== 创建应用列表 (Launcher/Tile) ========== */
+/* ========== 创建应用列表 (Launcher/Tile) - InfiniTime 风格 ========== */
 static void create_launcher_screen(void) {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_local_bg_color(scr, LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
     lv_obj_clean(scr);
     
-    /* 标题 */
-    lv_obj_t *title = lv_label_create(scr, NULL);
-    lv_label_set_text(title, "Applications");
-    lv_obj_align(title, NULL, LV_ALIGN_IN_TOP_MID, 0, 10);
-    lv_obj_set_style_local_text_color(title, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
-    lv_obj_set_style_local_text_font(title, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_bold_20);
-    
-    /* 应用列表 */
-    const char *app_names[] = {
-        "Notifications", "Stop Watch", "Timer", "Music",
-        "Navigation", "Metronome", "Weather", "Battery",
-        "System Info", "Flashlight", "Paddle", "Dice"
-    };
-    const char *app_icons[] = {
-        SYM_BELL, SYM_STOPWATCH, SYM_CLOCK, SYM_MUSIC,
-        SYM_NAVIGATION, SYM_METRONOME, SYM_WEATHER, SYM_BATTERY_HALF,
-        SYM_INFO, SYM_FLASHLIGHT, SYM_PADDLE, SYM_DICE
+    /* 应用图标 - 使用 FontAwesome UTF-8 字符，与 InfiniTime 一致 */
+    const char *icons_page1[] = {
+        SYM_BELL,          /* Notifications */
+        SYM_STOPWATCH,     /* Stopwatch */
+        SYM_CLOCK,         /* Timer */
+        SYM_MUSIC,         /* Music */
+        SYM_NAVIGATION,    /* Navigation */
+        SYM_METRONOME,     /* Metronome */
     };
     
-    int num_apps = 12;
-    launcher_ui.tiles = (lv_obj_t**)malloc(num_apps * sizeof(lv_obj_t*));
-    launcher_ui.labels = (lv_obj_t**)malloc(num_apps * sizeof(lv_obj_t*));
-    launcher_ui.icons = (lv_obj_t**)malloc(num_apps * sizeof(lv_obj_t*));
+    const char *icons_page2[] = {
+        SYM_WEATHER,       /* Weather */
+        SYM_BATTERY_HALF,  /* Battery Info */
+        SYM_INFO,          /* System Info */
+        SYM_FLASHLIGHT,    /* Flashlight */
+        SYM_PADDLE,        /* Paddle */
+        SYM_DICE,          /* Dice */
+    };
     
-    lv_obj_t *list = lv_list_create(scr, NULL);
-    lv_obj_set_size(list, LV_HOR_RES_MAX - 20, LV_VER_RES_MAX - 60);
-    lv_obj_align(list, NULL, LV_ALIGN_CENTER, 0, 15);
-    lv_obj_set_style_local_bg_color(list, LV_LIST_PART_BG, LV_STATE_DEFAULT, LV_COLOR_BLACK);
-    lv_obj_set_style_local_border_width(list, LV_LIST_PART_BG, LV_STATE_DEFAULT, 0);
+    /* 创建两页 Tile 屏幕 */
+    launcher_ui.btnm[0] = infinitime_create_tile_screen(scr, 0, 2, icons_page1, 6);
+    launcher_ui.btnm[1] = infinitime_create_tile_screen(scr, 1, 2, icons_page2, 6);
     
-    for (int i = 0; i < num_apps; i++) {
-        launcher_ui.icons[i] = lv_list_add_btn(list, app_icons[i], app_names[i]);
-        lv_obj_set_style_local_bg_color(launcher_ui.icons[i], LV_BTN_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
-        lv_obj_set_style_local_border_width(launcher_ui.icons[i], LV_BTN_PART_MAIN, LV_STATE_DEFAULT, 0);
-        lv_obj_set_event_cb(launcher_ui.icons[i], app_tile_cb);
-    }
+    /* 默认显示第一页 */
+    launcher_ui.current_page = 0;
+    lv_obj_set_hidden(launcher_ui.btnm[1], true);
 }
 
 /* ========== 创建快捷设置 (QuickSettings) ========== */
@@ -456,56 +510,76 @@ static void create_notifications_screen(void) {
     lv_list_add_btn(list, SYM_BELL, "No notifications");
 }
 
-/* ========== 创建秒表屏幕 ========== */
+/* ========== 创建秒表屏幕 (StopWatch) - 完全参考 InfiniTime ========== */
 static void create_stopwatch_screen(void) {
     lv_obj_t *scr = lv_scr_act();
     lv_obj_set_style_local_bg_color(scr, LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
     lv_obj_clean(scr);
     
-    /* 标题 */
-    lv_obj_t *title = lv_label_create(scr, NULL);
-    lv_label_set_text(title, "Stop Watch");
-    lv_obj_align(title, NULL, LV_ALIGN_IN_TOP_MID, 0, 10);
-    lv_obj_set_style_local_text_color(title, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
-    lv_obj_set_style_local_text_font(title, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_bold_20);
-    
-    /* 时间显示 */
+    /* 时间显示 - 顶部中央，使用 jetbrains_mono_76 大字体 */
     stopwatch_ui.label_time = lv_label_create(scr, NULL);
-    lv_label_set_text(stopwatch_ui.label_time, "00:00.00");
-    lv_obj_align(stopwatch_ui.label_time, scr, LV_ALIGN_CENTER, 0, -30);
+    lv_label_set_text(stopwatch_ui.label_time, "00:00");
+    lv_obj_set_style_local_text_font(stopwatch_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_76);
     lv_obj_set_style_local_text_color(stopwatch_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
-    lv_obj_set_style_local_text_font(stopwatch_ui.label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, &jetbrains_mono_42);
+    lv_obj_set_width(stopwatch_ui.label_time, LV_HOR_RES_MAX);
+    lv_label_set_align(stopwatch_ui.label_time, LV_LABEL_ALIGN_CENTER);
+    lv_obj_align(stopwatch_ui.label_time, scr, LV_ALIGN_IN_TOP_MID, 0, 0);
     
-    /* 开始/暂停按钮 */
+    /* 百分秒 - 时间下方 */
+    lv_obj_t *msec_label = lv_label_create(scr, NULL);
+    stopwatch_ui.label_msec = msec_label;
+    lv_label_set_text_static(msec_label, "00");
+    lv_obj_set_style_local_text_color(msec_label, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_LIGHT_GRAY);
+    lv_obj_align(msec_label, stopwatch_ui.label_time, LV_ALIGN_OUT_BOTTOM_MID, 0, -2);
+    
+    /* 计次显示区域 - 底部中央上方 */
+    stopwatch_ui.label_lap = lv_label_create(scr, NULL);
+    lv_label_set_text_static(stopwatch_ui.label_lap, "");
+    lv_obj_set_style_local_text_color(stopwatch_ui.label_lap, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_LIGHT_GRAY);
+    lv_label_set_long_mode(stopwatch_ui.label_lap, LV_LABEL_LONG_BREAK);
+    lv_label_set_align(stopwatch_ui.label_lap, LV_LABEL_ALIGN_CENTER);
+    lv_obj_set_width(stopwatch_ui.label_lap, LV_HOR_RES_MAX);
+    lv_obj_align(stopwatch_ui.label_lap, scr, LV_ALIGN_IN_BOTTOM_MID, 0, -82);
+    
+    /* 按钮尺寸 - 参考 InfiniTime (btnWidth=115, btnHeight=80) */
+    static const uint8_t btn_width = 115;
+    static const uint8_t btn_height = 80;
+    
+    /* 开始/暂停按钮 - 右下角 */
     stopwatch_ui.btn_start = lv_btn_create(scr, NULL);
-    lv_obj_set_size(stopwatch_ui.btn_start, 60, 60);
-    lv_obj_align(stopwatch_ui.btn_start, scr, LV_ALIGN_CENTER, -60, 50);
-    lv_obj_set_style_local_bg_color(stopwatch_ui.btn_start, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x222222));
+    lv_obj_set_size(stopwatch_ui.btn_start, btn_width, btn_height);
+    lv_obj_align(stopwatch_ui.btn_start, scr, LV_ALIGN_IN_BOTTOM_RIGHT, 0, 0);
+    lv_obj_set_style_local_bg_color(stopwatch_ui.btn_start, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_BG_ALT);
+    lv_obj_set_style_local_bg_color(stopwatch_ui.btn_start, LV_BTN_PART_MAIN, LV_STATE_PRESSED, IT_COLOR_BG);
+    lv_obj_set_style_local_radius(stopwatch_ui.btn_start, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, 10);
     lv_obj_set_event_cb(stopwatch_ui.btn_start, stopwatch_btn_cb);
     
-    lv_obj_t *lbl = lv_label_create(stopwatch_ui.btn_start, NULL);
-    lv_label_set_text(lbl, SYM_PLAY);
-    lv_obj_set_style_local_text_color(lbl, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+    lv_obj_t *txt_play = lv_label_create(stopwatch_ui.btn_start, NULL);
+    stopwatch_ui.label_play = txt_play;
+    lv_label_set_text(txt_play, SYM_PLAY);
+    lv_obj_set_style_local_text_color(txt_play, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
     
-    /* 计次按钮 */
-    stopwatch_ui.btn_lap = lv_btn_create(scr, stopwatch_ui.btn_start);
-    lv_obj_align(stopwatch_ui.btn_lap, scr, LV_ALIGN_CENTER, 0, 50);
+    /* 计次/停止按钮 - 左下角 */
+    stopwatch_ui.btn_lap = lv_btn_create(scr, NULL);
+    lv_obj_set_size(stopwatch_ui.btn_lap, btn_width, btn_height);
+    lv_obj_align(stopwatch_ui.btn_lap, scr, LV_ALIGN_IN_BOTTOM_LEFT, 0, 0);
+    lv_obj_set_style_local_bg_color(stopwatch_ui.btn_lap, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, IT_COLOR_BG_ALT);
+    lv_obj_set_style_local_bg_color(stopwatch_ui.btn_lap, LV_BTN_PART_MAIN, LV_STATE_PRESSED, IT_COLOR_BG);
+    lv_obj_set_style_local_radius(stopwatch_ui.btn_lap, LV_BTN_PART_MAIN, LV_STATE_DEFAULT, 10);
+    lv_obj_set_state(stopwatch_ui.btn_lap, LV_STATE_DISABLED);  /* 初始禁用 */
+    lv_obj_set_event_cb(stopwatch_ui.btn_lap, stopwatch_btn_cb);
     
-    lbl = lv_label_create(stopwatch_ui.btn_lap, NULL);
-    lv_label_set_text(lbl, SYM_LAPS_FLAG);
-    lv_obj_set_style_local_text_color(lbl, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+    lv_obj_t *txt_lap = lv_label_create(stopwatch_ui.btn_lap, NULL);
+    lv_label_set_text(txt_lap, SYM_LAPS_FLAG);
+    lv_obj_set_style_local_text_color(txt_lap, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
     
-    /* 重置按钮 */
-    stopwatch_ui.btn_reset = lv_btn_create(scr, stopwatch_ui.btn_start);
-    lv_obj_align(stopwatch_ui.btn_reset, scr, LV_ALIGN_CENTER, 60, 50);
-    
-    lbl = lv_label_create(stopwatch_ui.btn_reset, NULL);
-    lv_label_set_text(lbl, LV_SYMBOL_REFRESH);
-    lv_obj_set_style_local_text_color(lbl, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
+    /* 重置按钮不需要，InfiniTime 没有重置按钮 */
+    stopwatch_ui.btn_reset = NULL;
     
     stopwatch_ui.elapsed_ms = 0;
     stopwatch_ui.running = false;
     
+    /* 创建秒表更新任务 */
     lv_task_create(stopwatch_task_cb, 10, LV_TASK_PRIO_MID, NULL);
 }
 
@@ -525,7 +599,11 @@ static void switch_screen(it_screen_t screen) {
     memset(&stopwatch_ui, 0, sizeof(stopwatch_ui));
     
     current_screen = screen;
+#ifndef LVGL_SIMULATOR
     last_activity_time = HAL_GetTick();
+#else
+    last_activity_time = 0;
+#endif
     
     switch (screen) {
         case IT_SCREEN_CLOCK:
@@ -602,8 +680,10 @@ static void create_placeholder_screen(it_screen_t screen) {
 
 /* ========== 公共API ========== */
 
-void infinitime_ui_init(void)
+/* 硬件相关初始化（仅STM32） */
+void infinitime_ui_init_hw(void)
 {
+#ifndef LVGL_SIMULATOR
     ft3168_touch_init();
     
     lvgl_init();
@@ -612,10 +692,23 @@ void infinitime_ui_init(void)
     
     /* 使用ST7789_Delay，不依赖SysTick */
     ST7789_Delay(100);
+#endif
+}
+
+/* UI 初始化入口（模拟器或STM32共用） */
+void infinitime_ui_init(void)
+{
+    /* 硬件初始化 */
+    infinitime_ui_init_hw();
     
+    /* 创建默认屏幕 */
     create_clock_screen();
     
+#ifndef LVGL_SIMULATOR
     last_activity_time = HAL_GetTick();
+#else
+    last_activity_time = 0;
+#endif
 }
 
 /* 调试用全局变量 */
@@ -628,6 +721,7 @@ volatile uint32_t g_debug_stage = 0; /* 调试：记录最后执行到的阶段 
 
 void infinitime_ui_task(void)
 {
+#ifndef LVGL_SIMULATOR
     static uint32_t last_tick = 0;
     static uint32_t last_systick_check = 0;
     static uint32_t systick_stuck_count = 0;
@@ -677,11 +771,11 @@ void infinitime_ui_task(void)
         g_max_handler_time = handler_time;
     }
     
-    /* 在lv_task_handler之后创建调试任务 */
-    if (g_ui_task_count == 1) {
+    /* 禁用调试图层 */
+    /* if (g_ui_task_count == 1) {
         lvgl_debug_set_enabled(true);
-        lvgl_debug_draw(); /* 创建异步任务 */
-    }
+        lvgl_debug_draw();
+    } */
     
     /* 不再每次都调用lvgl_debug_draw()，让LVGL自然刷新 */
     
@@ -699,6 +793,13 @@ void infinitime_ui_task(void)
     // if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_3) == GPIO_PIN_SET) {
     //     lvgl_touch_release_handler();
     // }
+#else
+    /* 模拟器：简单调用 lv_task_handler */
+    g_ui_task_count++;
+    g_frame_count++;
+    g_heartbeat++;
+    lv_task_handler();
+#endif
 }
 
 uint32_t get_ui_frame_count(void)

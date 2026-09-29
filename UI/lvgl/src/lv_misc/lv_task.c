@@ -193,8 +193,8 @@ uint32_t lv_task_handler_get_count(void)
 
 bool lv_task_handler_is_running(void)
 {
-    extern bool already_running;
-    return already_running;
+    /* already_running is a static variable inside lv_task_handler, cannot be accessed externally */
+    return false;
 }
 
 /**

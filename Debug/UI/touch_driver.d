@@ -40,7 +40,8 @@ UI/touch_driver.o: ../UI/touch_driver.c ../UI/touch_driver.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_spi_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h
+ ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
+ ../Core/Inc/fonts.h
 ../UI/touch_driver.h:
 ../Core/Inc/st7789.h:
 ../Core/Inc/main.h:
@@ -85,3 +86,4 @@ UI/touch_driver.o: ../UI/touch_driver.c ../UI/touch_driver.h \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
+../Core/Inc/fonts.h:

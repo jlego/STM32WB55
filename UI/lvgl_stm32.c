@@ -10,11 +10,19 @@
 extern SPI_HandleTypeDef hspi1;
 extern DMA_HandleTypeDef hdma_spi1_tx;
 
+/* DWT是否工作 */
+static volatile bool dwt_working = false;
+
 /* DWT周期计数器初始化 - 用于不依赖SysTick的超时检测 */
 static void DWT_Init(void)
 {
     CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
     DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    /* 验证 CYCCNT 是否工作：读取两次，确保值在变化 */
+    uint32_t t1 = DWT->CYCCNT;
+    for (volatile int i = 0; i < 1000; i++); /* 短暂延迟 */
+    uint32_t t2 = DWT->CYCCNT;
+    dwt_working = (t2 != t1);
 }
 
 /* 获取DWT周期数（假设CPU频率64MHz，1ms ≈ 64000 cycles） */
@@ -25,6 +33,31 @@ static inline uint32_t DWT_GetTicks(void)
 
 /* DWT周期转毫秒 - 使用正确的64MHz系统时钟 */
 #define DWT_CYCLES_PER_MS (64000)  /* STM32WB55 PLL配置后SYSCLK=64MHz */
+
+/* 软件延迟函数 - 使用DWT周期计数器，不依赖SysTick */
+static void sw_delay_ms(uint32_t ms)
+{
+    if (!dwt_working) {
+        /* 如果DWT不工作，使用简单的软件循环 */
+        volatile uint32_t count = ms * 10000;
+        while (count--) {
+            __NOP();
+        }
+        return;
+    }
+    
+    uint32_t start = DWT->CYCCNT;
+    uint32_t target_cycles = ms * DWT_CYCLES_PER_MS;
+    
+    /* 等待直到达到目标周期数 */
+    while ((DWT->CYCCNT - start) < target_cycles) {
+        /* 软件超时：防止DWT溢出或其他问题 */
+        if ((DWT->CYCCNT - start) > 100000000) break; /* 约1.5秒超时 */
+    }
+}
+
+/* 软件超时计数器 - 不依赖DWT */
+static volatile uint32_t sw_timeout_counter = 0;
 
 /* 保存显示驱动指针，用于DMA完成回调 */
 static lv_disp_drv_t *current_disp_drv = NULL;
@@ -52,6 +85,27 @@ static volatile uint32_t spi_err_count = 0;
 static volatile uint32_t dma_complete_count = 0;
 static volatile uint32_t dma_start_count = 0;
 static volatile uint32_t dma_timeout_count = 0;
+
+/* DWT-based counter that increments even if SysTick stops */
+static volatile uint32_t dwt_debug_counter = 0;
+
+/* Increment DWT debug counter - called from main loop */
+void lvgl_increment_dwt_counter(void)
+{
+    dwt_debug_counter++;
+}
+
+/* Get DWT debug counter value */
+uint32_t lvgl_get_dwt_counter(void)
+{
+    return dwt_debug_counter;
+}
+
+/* Get DWT CYCCNT value */
+uint32_t lvgl_get_dwt_cyccnt(void)
+{
+    return DWT->CYCCNT;
+}
 
 /* 5x7 ASCII字体位图 */
 static const uint8_t font5x7[][5] = {
@@ -138,6 +192,31 @@ static void st7789_draw_char(uint16_t x, uint16_t y, char c, uint16_t color)
     }
 }
 
+/* 软件超时等待DMA完成 - 不依赖DWT */
+static void wait_dma_complete(uint32_t timeout_ms)
+{
+    /* 使用简单的软件循环超时 */
+    /* 64MHz CPU，每个循环约几个周期，100ms约需数百万次循环 */
+    volatile uint32_t count = 0;
+    volatile uint32_t max_count = timeout_ms * 50000; /* 增大超时计数 */
+    
+    while (dma_transfer_in_progress) {
+        count++;
+        if (count >= max_count) {
+            /* 超时，强制重置状态 */
+            dma_timeout_count++;
+            dma_err_count++;
+            dma_transfer_in_progress = false;
+            /* 关键修复：必须调用 lv_disp_flush_ready，否则 LVGL 会永久等待 */
+            if (current_disp_drv) {
+                lv_disp_flush_ready(current_disp_drv);
+                current_disp_drv = NULL;
+            }
+            break;
+        }
+    }
+}
+
 static void st7789_draw_debug_text(const char *str)
 {
     /* LV_COLOR_16_SWAP=1，所以颜色值需要字节交换：0x07E0 → 0xE007 */
@@ -176,23 +255,13 @@ static void st7789_draw_debug_text(const char *str)
         str_len++;
     }
     
+    /* 等待之前的DMA传输完成 */
+    wait_dma_complete(100);
+    
     /* 使用DMA传输（带DWT超时保护） */
     ST7789_SetAddressWindow(DEBUG_BG_X, DEBUG_BG_Y, DEBUG_BG_W, DEBUG_BG_H);
     lcd_dc_set();
     lcd_cs_clr();
-    
-    /* 等待之前的DMA传输完成 */
-    uint32_t wait_start = DWT_GetTicks();
-    uint32_t timeout_cycles = 100 * DWT_CYCLES_PER_MS;
-    while (dma_transfer_in_progress) {
-        if (DWT_GetTicks() - wait_start > timeout_cycles) {
-            dma_timeout_count++;
-            dma_err_count++;
-            dma_transfer_in_progress = false;
-            current_disp_drv = NULL;
-            break;
-        }
-    }
     
     /* 使用DMA传输 */
     HAL_StatusTypeDef status = HAL_SPI_Transmit_DMA(&hspi1, (uint8_t *)render_buf, DEBUG_BG_W * DEBUG_BG_H * 2);
@@ -205,20 +274,12 @@ static void st7789_draw_debug_text(const char *str)
     }
     
     /* 等待本次DMA传输完成 */
-    wait_start = DWT_GetTicks();
-    while (dma_transfer_in_progress) {
-        if (DWT_GetTicks() - wait_start > timeout_cycles) {
-            dma_timeout_count++;
-            dma_err_count++;
-            dma_transfer_in_progress = false;
-            break;
-        }
-    }
+    wait_dma_complete(100);
     
     lcd_cs_set();
 }
 
-/* 显示刷新回调函数 - 全部使用DMA非阻塞传输 */
+/* 显示刷新回调函数 - 启动DMA后立即返回,不阻塞等待 */
 static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_color_t * color_p)
 {
     uint16_t width = area->x2 - area->x1 + 1;
@@ -230,30 +291,12 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
         return;
     }
     
-    /* 如果DMA传输正在进行，等待完成（使用DWT周期计数器，不依赖SysTick） */
-    uint32_t wait_start = DWT_GetTicks();
-    uint32_t timeout_cycles = 100 * DWT_CYCLES_PER_MS; /* 100ms超时 */
-    bool timeout_occurred = false;
-    while (dma_transfer_in_progress) {
-        uint32_t elapsed = DWT_GetTicks() - wait_start;
-        if (elapsed > timeout_cycles) {
-            /* 超时100ms，强制重置状态 */
-            dma_timeout_count++;
-            dma_err_count++;
-            dma_transfer_in_progress = false;
-            current_disp_drv = NULL;
-            timeout_occurred = true;
-            break;
-        }
+    /* 如果DMA传输正在进行,强制等待完成(使用软件超时) */
+    if (dma_transfer_in_progress) {
+        wait_dma_complete(100);
     }
     
-    /* 如果超时发生，直接返回，不启动新的DMA传输 */
-    if (timeout_occurred) {
-        lv_disp_flush_ready(disp_drv);
-        return;
-    }
-    
-    ST7789_SetAddressWindow(area->x1, area->y1, width, height);
+    ST7789_SetAddressWindow(area->x1, area->y1, area->x2, area->y2);
     
     lcd_dc_set();
     lcd_cs_clr();
@@ -262,12 +305,12 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
     if (total_pixels <= DMA_TRANSFER_BUF_SIZE) {
         memcpy(dma_transfer_buf, color_p, total_pixels * sizeof(lv_color_t));
     } else {
-        /* 超大区域，分段传输 */
+        /* 超大区域,分段传输 */
         total_pixels = DMA_TRANSFER_BUF_SIZE;
         memcpy(dma_transfer_buf, color_p, total_pixels * sizeof(lv_color_t));
     }
     
-    /* 保存显示驱动指针，用于DMA完成回调 */
+    /* 保存显示驱动指针,用于DMA完成回调 */
     current_disp_drv = disp_drv;
     dma_transfer_in_progress = true;
     dma_start_count++;
@@ -280,24 +323,26 @@ static void disp_flush(lv_disp_drv_t * disp_drv, const lv_area_t * area, lv_colo
         lcd_cs_set();
         current_disp_drv = NULL;
         dma_transfer_in_progress = false;
-        /* DMA启动失败，直接调用flush_ready */
+        /* DMA启动失败,直接调用flush_ready */
         if (spi_status == HAL_BUSY) {
             hspi1.State = HAL_SPI_STATE_READY;
         }
         lv_disp_flush_ready(disp_drv);
+    } else {
+        /* 关键修复:DMA启动成功后立即标记刷新完成,不等待DMA回调 */
+        /* 这样LVGL不会阻塞在while(vdb->flushing)上 */
+        lv_disp_flush_ready(disp_drv);
     }
 }
 
-/* DMA传输完成回调 */
+/* DMA传输完成回调 - 仅更新计数,不再调用lv_disp_flush_ready */
 void HAL_SPI_TxCpltCallback(SPI_HandleTypeDef *hspi)
 {
     if (hspi->Instance == SPI1) {
         dma_complete_count++;
         lcd_cs_set();
-        if (current_disp_drv) {
-            lv_disp_flush_ready(current_disp_drv);
-            current_disp_drv = NULL;
-        }
+        /* 不再调用lv_disp_flush_ready,因为disp_flush已经立即返回 */
+        current_disp_drv = NULL;
         dma_transfer_in_progress = false;
     }
 }
@@ -316,9 +361,21 @@ void HAL_SPI_ErrorCallback(SPI_HandleTypeDef *hspi)
     if (hspi->Instance == SPI1) {
         dma_err_count++;
         lcd_cs_set();
+        
+        /* 重置SPI句柄状态，防止后续传输永久阻塞 */
+        hspi->State = HAL_SPI_STATE_READY;
+        hspi->ErrorCode = HAL_SPI_ERROR_NONE;
+        
+        /* 确保总是调用 lv_disp_flush_ready，即使 current_disp_drv 为 NULL */
         if (current_disp_drv) {
             lv_disp_flush_ready(current_disp_drv);
             current_disp_drv = NULL;
+        } else {
+            /* current_disp_drv 为 NULL，尝试获取当前显示驱动 */
+            lv_disp_t * disp = lv_disp_get_default();
+            if (disp) {
+                lv_disp_flush_ready(&disp->driver);
+            }
         }
         dma_transfer_in_progress = false;
     }
@@ -429,6 +486,32 @@ static bool touchpad_read(lv_indev_drv_t * indev_drv, lv_indev_data_t * data)
     return false;
 }
 
+/* 等待回调 - LVGL在等待DMA完成时调用此函数 */
+static void disp_wait_cb(lv_disp_drv_t * disp_drv)
+{
+    /* 使用DWT周期计数器检测超时，不依赖SysTick */
+    static uint32_t wait_start = 0;
+    
+    if (wait_start == 0) {
+        wait_start = DWT_GetTicks();
+    }
+    
+    uint32_t elapsed = DWT_GetTicks() - wait_start;
+    uint32_t timeout_cycles = 500 * DWT_CYCLES_PER_MS; /* 500ms超时 */
+    
+    if (elapsed > timeout_cycles) {
+        /* 超时，强制重置状态 */
+        dma_timeout_count++;
+        dma_err_count++;
+        dma_transfer_in_progress = false;
+        if (current_disp_drv) {
+            lv_disp_flush_ready(current_disp_drv);
+            current_disp_drv = NULL;
+        }
+        wait_start = 0;
+    }
+}
+
 void lvgl_init(void)
 {
     /* 初始化DWT周期计数器（用于不依赖SysTick的超时检测） */
@@ -436,12 +519,14 @@ void lvgl_init(void)
     
     lv_init();
     
-    /* 使用双缓冲区，避免 DMA 传输时缓冲区被修改 */
-    lv_disp_buf_init(&disp_buf, buf1, buf2, LV_HOR_RES_MAX * 40);
+    /* 使用单缓冲区，避免双缓冲模式下的 while(vdb->flushing) 阻塞循环 */
+    lv_disp_buf_init(&disp_buf, buf1, NULL, LV_HOR_RES_MAX * 40);
     
     lv_disp_drv_t disp_drv;
     lv_disp_drv_init(&disp_drv);
     disp_drv.flush_cb = disp_flush;
+    /* 关键修复：启用 wait_cb，LVGL 在等待 lv_disp_flush_ready 时会调用此回调 */
+    disp_drv.wait_cb = disp_wait_cb;
     disp_drv.buffer = &disp_buf;
     disp_drv.hor_res = LV_HOR_RES_MAX;
     disp_drv.ver_res = LV_VER_RES_MAX;
@@ -497,9 +582,9 @@ void lvgl_touch_process(void)
         ft_diag_done = true;
         
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_RESET);
-        HAL_Delay(30);
+        sw_delay_ms(30);
         HAL_GPIO_WritePin(GPIOA, GPIO_PIN_2, GPIO_PIN_SET);
-        HAL_Delay(160);
+        sw_delay_ms(160);
         
         i2c_safe_read(0xA3, (uint8_t*)&ft_chip_id, 1);
         i2c_safe_read(0xA8, (uint8_t*)&ft_vend_id, 1);
@@ -510,7 +595,7 @@ void lvgl_touch_process(void)
         i2c_safe_write(0x80, 0x05);
         i2c_safe_write(0xA4, 0x00);
         i2c_safe_write(0x00, 0x01);
-        HAL_Delay(50);
+        sw_delay_ms(50);
         
         i2c_safe_read(0xA5, (uint8_t*)&ft_pwr_mode, 1);
         i2c_safe_read(0x80, (uint8_t*)&ft_threshold, 1);
@@ -539,6 +624,8 @@ void lvgl_touch_process(void)
     } else {
         touch_buf_pressed = false;
     }
+
+    infinitime_detect_swipe(touch_buf_x, touch_buf_y, touch_buf_pressed);
 }
 
 void lvgl_tick_handler(uint32_t tick)
@@ -557,21 +644,23 @@ static void debug_update_task(lv_task_t * task)
     
     static char buf[128];
     uint32_t current_tick = HAL_GetTick();
-    uint32_t dma_start = dma_start_count;
-    uint32_t dma_done = dma_complete_count;
-    uint32_t dma_err = dma_err_count;
-    uint32_t task_count = lv_task_handler_get_count();
     uint32_t systick = get_systick_count();
     uint32_t main_loop = get_main_loop_count();
+    uint32_t dwt_cnt = lvgl_get_dwt_counter();
+    uint32_t icsr = SCB->ICSR;
+    uint32_t shpr3 = SCB->SHP[2];
+    uint32_t hclk = HAL_RCC_GetHCLKFreq();
+    uint32_t basepri = __get_BASEPRI();
     
-    snprintf(buf, sizeof(buf), "T:%lu M:0 D:%lu/%lu E:%lu TO:0\nTC:%lu ML:%lu S:0 HF:0 SY:%lu", 
+    snprintf(buf, sizeof(buf), "T:%lu SY:%lu ML:%lu\nDW:%lu ICSR:0x%lX\nSHPR3:0x%lX HCLK:%lu BP:%lu", 
              (unsigned long)current_tick,
-             (unsigned long)dma_done,
-             (unsigned long)dma_start,
-             (unsigned long)dma_err,
-             (unsigned long)task_count,
+             (unsigned long)systick,
              (unsigned long)main_loop,
-             (unsigned long)systick);
+             (unsigned long)dwt_cnt,
+             (unsigned long)icsr,
+             (unsigned long)shpr3,
+             (unsigned long)hclk,
+             (unsigned long)basepri);
     
     lv_label_set_text(dbg_label, buf);
 }

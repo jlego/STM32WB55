@@ -1,7 +1,29 @@
 #include "ft3168_touch.h"
 #include "stm32wbxx_hal.h"
+#include "core_cm4.h"  // 用于访问DWT寄存器
 
 extern I2C_HandleTypeDef hi2c1;
+
+/* 软件延迟函数 - 使用DWT周期计数器，不依赖SysTick */
+static void sw_delay_ms(uint32_t ms)
+{
+    /* 启用DWT周期计数器 */
+    CoreDebug->DEMCR |= CoreDebug_DEMCR_TRCENA_Msk;
+    DWT->CTRL |= DWT_CTRL_CYCCNTENA_Msk;
+    
+    /* STM32WB55 SYSCLK=64MHz, 1ms ≈ 64000 cycles */
+    uint32_t cycles_per_ms = 64000;
+    uint32_t target_cycles = ms * cycles_per_ms;
+    
+    /* 读取当前周期计数 */
+    uint32_t start = DWT->CYCCNT;
+    
+    /* 等待直到达到目标周期数 */
+    while ((DWT->CYCCNT - start) < target_cycles) {
+        /* 软件超时：防止DWT溢出或其他问题 */
+        if ((DWT->CYCCNT - start) > 100000000) break; /* 约1.5秒超时 */
+    }
+}
 
 /* FT3168 I2C地址 (7-bit) */
 #define FT3168_I2C_ADDR         0x38
@@ -195,15 +217,15 @@ bool ft3168_diag_direct_read(uint8_t reg, uint8_t *data, uint16_t len)
     return ft3168_i2c_read(reg, data, len);
 }
 
-/* 硬件复位 */
+/* 硬件复位 - 使用软件延迟，不依赖SysTick */
 static void ft3168_hard_reset(void)
 {
     HAL_GPIO_WritePin(FT3168_RST_PORT, FT3168_RST_PIN, GPIO_PIN_SET);
-    HAL_Delay(10);
+    sw_delay_ms(10);
     HAL_GPIO_WritePin(FT3168_RST_PORT, FT3168_RST_PIN, GPIO_PIN_RESET);
-    HAL_Delay(30);
+    sw_delay_ms(30);
     HAL_GPIO_WritePin(FT3168_RST_PORT, FT3168_RST_PIN, GPIO_PIN_SET);
-    HAL_Delay(160);
+    sw_delay_ms(160);
 }
 
 /* 初始化FT3168触摸驱动 */
@@ -237,13 +259,13 @@ bool ft3168_touch_init(void)
     /* 硬件复位 */
     ft3168_hard_reset();
     
-    HAL_Delay(20);
+    sw_delay_ms(20);
     
     {
         uint8_t active_mode = 0x01;
         ft3168_i2c_write(0x00, &active_mode, 1);
     }
-    HAL_Delay(5);
+    sw_delay_ms(5);
     
     ft3168_i2c_read(0xA8, &diag_vend_id, 1);
     ft3168_i2c_read(0xA3, &chip_id, 1);

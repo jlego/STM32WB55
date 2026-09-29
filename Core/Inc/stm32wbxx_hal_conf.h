@@ -174,7 +174,7 @@
   */
 
 #define  VDD_VALUE				3300U                   /*!< Value of VDD in mv */
-#define  TICK_INT_PRIORITY            15U      /*!< tick interrupt priority */
+#define  TICK_INT_PRIORITY            2U      /*!< tick interrupt priority - 提高到2，高于DMA(3)和触摸(5) */
 #define  USE_RTOS                     0U
 #define  PREFETCH_ENABLE              1U
 #define  INSTRUCTION_CACHE_ENABLE     1U

@@ -7,6 +7,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "lvgl/lvgl.h"
 
 /* 屏幕分辨率 */
 #define IT_SCREEN_WIDTH  240
@@ -83,6 +84,9 @@ void infinitime_set_steps(uint32_t steps);
 
 /* 模拟心率更新 */
 void infinitime_set_heart_rate(uint8_t bpm);
+
+/* 滑动手势检测 - 在触摸处理中调用 */
+void infinitime_detect_swipe(lv_coord_t x, lv_coord_t y, bool pressed);
 
 /* 获取调试信息 */
 uint32_t get_main_loop_count(void);

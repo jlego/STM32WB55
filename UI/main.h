@@ -1,9 +1,10 @@
 #pragma once
 
-#include <FreeRTOS.h>
-#include <timers.h>
+/* FreeRTOS 已移除，不再需要 */
 
-void DebounceTimerCallback(TimerHandle_t xTimer);
+/* 如果将来需要定时器回调，可以使用 HAL 定时器 */
+/* typedef void (*TimerCallback)(void); */
 
-extern int mallocFailedCount;
-extern int stackOverflowCount;
+/* 全局变量声明（如果需要） */
+/* extern int mallocFailedCount; */
+/* extern int stackOverflowCount; */

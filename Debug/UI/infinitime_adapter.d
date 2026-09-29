@@ -173,7 +173,7 @@ UI/infinitime_adapter.o: ../UI/infinitime_adapter.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
- ../UI/ft3168_touch.h
+ ../Core/Inc/fonts.h ../UI/ft3168_touch.h
 ../UI/infinitime_adapter.h:
 ../UI/lvgl_stm32.h:
 ../UI/lvgl/lvgl.h:
@@ -373,4 +373,5 @@ UI/infinitime_adapter.o: ../UI/infinitime_adapter.c \
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_tim_ex.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h:
+../Core/Inc/fonts.h:
 ../UI/ft3168_touch.h:

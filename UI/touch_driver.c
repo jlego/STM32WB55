@@ -36,17 +36,19 @@ static uint8_t chip_id = 0;
 static uint8_t fw_version = 0;
 static bool touch_initialized = false;
 
-/* I2C读取函数 */
+/* I2C读取函数 - 使用软件超时，不依赖SysTick */
 static bool ft6x36_i2c_read(uint8_t reg, uint8_t *data, uint16_t len)
 {
-    HAL_StatusTypeDef status = HAL_I2C_Mem_Read(&hi2c1, FT6X36_I2C_ADDR << 1, reg, I2C_MEMADD_SIZE_8BIT, data, len, HAL_MAX_DELAY);
+    /* 使用10ms超时，避免SysTick停止时永久阻塞 */
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Read(&hi2c1, FT6X36_I2C_ADDR << 1, reg, I2C_MEMADD_SIZE_8BIT, data, len, 10);
     return (status == HAL_OK);
 }
 
-/* I2C写入函数 */
+/* I2C写入函数 - 使用软件超时，不依赖SysTick */
 static bool ft6x36_i2c_write(uint8_t reg, uint8_t *data, uint16_t len)
 {
-    HAL_StatusTypeDef status = HAL_I2C_Mem_Write(&hi2c1, FT6X36_I2C_ADDR << 1, reg, I2C_MEMADD_SIZE_8BIT, data, len, HAL_MAX_DELAY);
+    /* 使用10ms超时，避免SysTick停止时永久阻塞 */
+    HAL_StatusTypeDef status = HAL_I2C_Mem_Write(&hi2c1, FT6X36_I2C_ADDR << 1, reg, I2C_MEMADD_SIZE_8BIT, data, len, 10);
     return (status == HAL_OK);
 }
 
@@ -65,11 +67,11 @@ bool touch_init(void)
     GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(TOUCH_RST_PORT, &GPIO_InitStruct);
     
-    /* 硬件复位 */
+    /* 硬件复位 - 使用软件延迟 */
     HAL_GPIO_WritePin(TOUCH_RST_PORT, TOUCH_RST_PIN, GPIO_PIN_RESET);
-    HAL_Delay(10);
+    ST7789_Delay(10);
     HAL_GPIO_WritePin(TOUCH_RST_PORT, TOUCH_RST_PIN, GPIO_PIN_SET);
-    HAL_Delay(50);
+    ST7789_Delay(50);
     
     /* 读取芯片ID */
     if (!ft6x36_i2c_read(FT6X36_REG_CHIP_ID, &chip_id, 1)) {

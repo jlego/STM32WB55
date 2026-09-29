@@ -15,6 +15,9 @@ void lvgl_touch_irq_handler(void);
 void lvgl_touch_release_handler(void);
 void lvgl_touch_process(void);
 uint32_t lvgl_get_spi_err_count(void);
+void lvgl_increment_dwt_counter(void);
+uint32_t lvgl_get_dwt_counter(void);
+uint32_t lvgl_get_dwt_cyccnt(void);
 
 #ifdef __cplusplus
 }

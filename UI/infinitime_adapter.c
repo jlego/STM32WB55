@@ -102,6 +102,56 @@ static struct {
 static bool is_dimmed = false;
 static uint32_t last_activity_time = 0;
 
+/* ========== 滑动手势检测 ========== */
+static lv_coord_t swipe_start_x = 0;
+static lv_coord_t swipe_start_y = 0;
+static bool swipe_tracking = false;
+static bool swipe_consumed = false;
+#define SWIPE_THRESHOLD 40
+
+void infinitime_detect_swipe(lv_coord_t x, lv_coord_t y, bool pressed)
+{
+    if (pressed && !swipe_tracking) {
+        swipe_start_x = x;
+        swipe_start_y = y;
+        swipe_tracking = true;
+        swipe_consumed = false;
+        return;
+    }
+
+    if (pressed && swipe_tracking && !swipe_consumed) {
+        lv_coord_t dx = x - swipe_start_x;
+        lv_coord_t dy = y - swipe_start_y;
+
+        if (dx > SWIPE_THRESHOLD && dx > abs(dy)) {
+            swipe_consumed = true;
+            if (current_screen == IT_SCREEN_CLOCK) {
+                switch_screen(IT_SCREEN_NOTIFICATIONS);
+            }
+        } else if (dx < -SWIPE_THRESHOLD && abs(dx) > abs(dy)) {
+            swipe_consumed = true;
+            if (current_screen != IT_SCREEN_CLOCK) {
+                switch_screen(IT_SCREEN_CLOCK);
+            }
+        } else if (dy > SWIPE_THRESHOLD && dy > abs(dx)) {
+            swipe_consumed = true;
+            if (current_screen == IT_SCREEN_CLOCK) {
+                switch_screen(IT_SCREEN_QUICK_SETTINGS);
+            }
+        } else if (dy < -SWIPE_THRESHOLD && abs(dy) > abs(dx)) {
+            swipe_consumed = true;
+            if (current_screen == IT_SCREEN_CLOCK) {
+                switch_screen(IT_SCREEN_LAUNCHER);
+            }
+        }
+    }
+
+    if (!pressed && swipe_tracking) {
+        swipe_tracking = false;
+        swipe_consumed = false;
+    }
+}
+
 /* ========== 前向声明 ========== */
 static void create_clock_screen(void);
 static void create_launcher_screen(void);
@@ -552,7 +602,8 @@ void infinitime_ui_init(void)
     
     ST7789_FillScreen(COLOR_BLACK);
     
-    HAL_Delay(100);
+    /* 使用ST7789_Delay，不依赖SysTick */
+    ST7789_Delay(100);
     
     create_clock_screen();
     
@@ -570,16 +621,44 @@ volatile uint32_t g_debug_stage = 0; /* 调试：记录最后执行到的阶段 
 void infinitime_ui_task(void)
 {
     static uint32_t last_tick = 0;
+    static uint32_t last_systick_check = 0;
+    static uint32_t systick_stuck_count = 0;
+    static uint32_t systick_recover_attempts = 0;
     
     g_ui_task_count++;
     g_main_loop_count++;
     g_frame_count++;
     g_heartbeat++; /* 心跳递增 */
     g_debug_stage = 1; /* 阶段1：进入UI任务 */
+    
+    /* Increment DWT counter on each UI task call - this counter increments even if SysTick stops */
+    lvgl_increment_dwt_counter();
+    
+    /* 检测 SysTick 是否卡住并自动恢复 */
+    uint32_t current_systick = get_systick_count();
+    if (current_systick == last_systick_check) {
+        systick_stuck_count++;
+        /* 如果 SysTick 超过 50ms 没有递增，尝试重新启用 */
+        if (systick_stuck_count >= 50) {
+            systick_recover_attempts++;
+            /* 强制重新启用 SysTick 中断 */
+            SysTick->CTRL |= SysTick_CTRL_TICKINT_Msk;
+            /* 也确保计数器使能 */
+            SysTick->CTRL |= SysTick_CTRL_ENABLE_Msk;
+            systick_stuck_count = 0;
+        }
+    } else {
+        systick_stuck_count = 0;
+        last_systick_check = current_systick;
+    }
+    
     uint32_t current_tick = HAL_GetTick();
     
     /* 调试：在 lv_task_handler 前后标记 */
     g_debug_stage = 4; /* 阶段4：准备调用lv_task_handler */
+    
+    lvgl_touch_process();
+    
     uint32_t before_handler = HAL_GetTick();
     uint32_t next_run = lv_task_handler();
     g_debug_stage = 5; /* 阶段5：lv_task_handler完成 */

@@ -42,6 +42,7 @@ static void disp_flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_col
 
 /* 触摸输入处理 */
 static bool mouse_pressed = false;
+static bool last_mouse_pressed = false;
 static int mouse_x = 0, mouse_y = 0;
 
 static bool touchpad_read_cb(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
@@ -51,6 +52,20 @@ static bool touchpad_read_cb(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
     data->point.y = mouse_y;
     return false;
 }
+
+/* 鼠标滚轮输入处理 */
+static int mouse_wheel_diff = 0;
+
+static bool mousewheel_read_cb(lv_indev_drv_t *indev_drv, lv_indev_data_t *data)
+{
+    data->state = mouse_wheel_diff != 0 ? LV_INDEV_STATE_PR : LV_INDEV_STATE_REL;
+    data->enc_diff = mouse_wheel_diff;
+    mouse_wheel_diff = 0;
+    return false;
+}
+
+/* 外部滑动手势检测函数 */
+extern void infinitime_detect_swipe(lv_coord_t x, lv_coord_t y, bool pressed);
 
 /* 处理 SDL 事件 */
 static void sdl_events_process(void)
@@ -70,18 +85,42 @@ static void sdl_events_process(void)
             case SDL_MOUSEBUTTONDOWN:
                 if(event.button.button == SDL_BUTTON_LEFT) {
                     mouse_pressed = true;
-                    mouse_x = event.button.x;
-                    mouse_y = event.button.y;
+                    /* 转换坐标：窗口是 2 倍放大，需要除以 2 */
+                    mouse_x = event.button.x / 2;
+                    mouse_y = event.button.y / 2;
+                    /* 确保坐标在屏幕范围内 */
+                    if(mouse_x < 0) mouse_x = 0;
+                    if(mouse_x >= DISP_HOR_RES) mouse_x = DISP_HOR_RES - 1;
+                    if(mouse_y < 0) mouse_y = 0;
+                    if(mouse_y >= DISP_VER_RES) mouse_y = DISP_VER_RES - 1;
+                    /* 调用滑动手势检测 */
+                    infinitime_detect_swipe(mouse_x, mouse_y, true);
                 }
                 break;
             case SDL_MOUSEBUTTONUP:
                 if(event.button.button == SDL_BUTTON_LEFT) {
                     mouse_pressed = false;
+                    /* 调用滑动手势检测（释放） */
+                    infinitime_detect_swipe(mouse_x, mouse_y, false);
                 }
                 break;
             case SDL_MOUSEMOTION:
-                mouse_x = event.motion.x;
-                mouse_y = event.motion.y;
+                /* 转换坐标：窗口是 2 倍放大，需要除以 2 */
+                mouse_x = event.motion.x / 2;
+                mouse_y = event.motion.y / 2;
+                /* 确保坐标在屏幕范围内 */
+                if(mouse_x < 0) mouse_x = 0;
+                if(mouse_x >= DISP_HOR_RES) mouse_x = DISP_HOR_RES - 1;
+                if(mouse_y < 0) mouse_y = 0;
+                if(mouse_y >= DISP_VER_RES) mouse_y = DISP_VER_RES - 1;
+                /* 如果鼠标按下，调用滑动手势检测 */
+                if(mouse_pressed) {
+                    infinitime_detect_swipe(mouse_x, mouse_y, true);
+                }
+                break;
+            case SDL_MOUSEWHEEL:
+                /* 鼠标滚轮 - 用于页面滚动 */
+                mouse_wheel_diff += event.wheel.y;
                 break;
             case SDL_KEYDOWN:
                 /* ESC 键退出 */
@@ -92,6 +131,31 @@ static void sdl_events_process(void)
                     SDL_DestroyWindow(window);
                     SDL_Quit();
                     exit(0);
+                }
+                /* 方向键模拟滑动手势 */
+                else if(event.key.keysym.sym == SDLK_UP) {
+                    /* 上滑：从时钟页到应用列表 */
+                    infinitime_detect_swipe(120, 140, true);
+                    infinitime_detect_swipe(120, 40, true);
+                    infinitime_detect_swipe(120, 40, false);
+                }
+                else if(event.key.keysym.sym == SDLK_DOWN) {
+                    /* 下滑：从时钟页到快捷设置 */
+                    infinitime_detect_swipe(120, 40, true);
+                    infinitime_detect_swipe(120, 140, true);
+                    infinitime_detect_swipe(120, 140, false);
+                }
+                else if(event.key.keysym.sym == SDLK_LEFT) {
+                    /* 左滑：返回时钟 */
+                    infinitime_detect_swipe(120, 140, true);
+                    infinitime_detect_swipe(20, 140, true);
+                    infinitime_detect_swipe(20, 140, false);
+                }
+                else if(event.key.keysym.sym == SDLK_RIGHT) {
+                    /* 右滑：到通知页 */
+                    infinitime_detect_swipe(20, 140, true);
+                    infinitime_detect_swipe(120, 140, true);
+                    infinitime_detect_swipe(120, 140, false);
                 }
                 break;
         }
@@ -106,7 +170,11 @@ int main(int argc, char **argv)
 {
     printf("LVGL Simulator - InfiniTime UI\n");
     printf("Screen: %dx%d\n", DISP_HOR_RES, DISP_VER_RES);
-    printf("Mouse = Touch, ESC = Quit\n\n");
+    printf("Mouse Left Click = Touch\n");
+    printf("Mouse Drag = Swipe\n");
+    printf("Mouse Wheel = Scroll\n");
+    printf("Arrow Keys = Swipe (Up/Down/Left/Right)\n");
+    printf("ESC = Quit\n\n");
 
     /* 初始化 SDL */
     if(SDL_Init(SDL_INIT_VIDEO) < 0) {
@@ -165,6 +233,13 @@ int main(int argc, char **argv)
     indev_drv.type = LV_INDEV_TYPE_POINTER;
     indev_drv.read_cb = touchpad_read_cb;
     lv_indev_drv_register(&indev_drv);
+
+    /* 注册鼠标滚轮输入驱动 */
+    lv_indev_drv_t enc_drv;
+    lv_indev_drv_init(&enc_drv);
+    enc_drv.type = LV_INDEV_TYPE_ENCODER;
+    enc_drv.read_cb = mousewheel_read_cb;
+    lv_indev_drv_register(&enc_drv);
 
     /* 初始化 UI */
     infinitime_ui_init();

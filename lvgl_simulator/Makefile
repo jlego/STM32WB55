@@ -96,6 +96,7 @@ LVGL_SRCS += $(LVGL_DIR)/resources/fonts/jetbrains_mono_42.c
 LVGL_SRCS += $(LVGL_DIR)/resources/fonts/jetbrains_mono_76.c
 LVGL_SRCS += $(LVGL_DIR)/resources/fonts/open_sans_light.c
 LVGL_SRCS += $(LVGL_DIR)/resources/fonts/fontawesome_weathericons.c
+LVGL_SRCS += $(LVGL_DIR)/resources/fonts/fontawesome_icons.c
 
 # 项目源文件
 PROJECT_SRCS = $(LVGL_DIR)/infinitime_adapter.c

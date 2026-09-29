@@ -401,7 +401,7 @@ static void create_launcher_screen(void) {
     lv_obj_set_style_local_bg_color(scr, LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
     lv_obj_clean(scr);
     
-    /* 应用图标 - 使用 FontAwesome UTF-8 字符，与 InfiniTime 一致 */
+    /* 应用图标 - FontAwesome 符号 */
     const char *icons_page1[] = {
         SYM_BELL,          /* Notifications */
         SYM_STOPWATCH,     /* Stopwatch */
@@ -701,8 +701,9 @@ void infinitime_ui_init(void)
     /* 硬件初始化 */
     infinitime_ui_init_hw();
     
-    /* 创建默认屏幕 */
-    create_clock_screen();
+    /* 创建默认屏幕 - 临时改为 Launcher 调试 */
+    create_launcher_screen();
+    //create_clock_screen();
     
 #ifndef LVGL_SIMULATOR
     last_activity_time = HAL_GetTick();

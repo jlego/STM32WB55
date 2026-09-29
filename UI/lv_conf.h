@@ -422,7 +422,8 @@ typedef void* lv_indev_drv_user_data_t;            /*Type of user data in the in
                                LV_FONT_DECLARE(jetbrains_mono_42) \
                                LV_FONT_DECLARE(jetbrains_mono_76) \
                                LV_FONT_DECLARE(open_sans_light) \
-                               LV_FONT_DECLARE(fontawesome_weathericons)
+                               LV_FONT_DECLARE(fontawesome_weathericons) \
+                               LV_FONT_DECLARE(fontawesome_icons)
 
 /* Enable it if you have fonts with a lot of characters.
  * The limit depends on the font size, font face and bpp

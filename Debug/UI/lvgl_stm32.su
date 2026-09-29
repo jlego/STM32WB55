@@ -29,7 +29,7 @@
 ../UI/lvgl_stm32.c:556:6:lvgl_touch_irq_handler	4	static
 ../UI/lvgl_stm32.c:563:6:lvgl_touch_release_handler	8	static
 ../UI/lvgl_stm32.c:572:6:lvgl_touch_process	24	static
-../UI/lvgl_stm32.c:629:6:lvgl_tick_handler	16	static
-../UI/lvgl_stm32.c:639:13:debug_update_task	88	static,ignoring_inline_asm
-../UI/lvgl_stm32.c:669:6:lvgl_debug_draw	8	static
-../UI/lvgl_stm32.c:677:6:lvgl_debug_set_enabled	16	static
+../UI/lvgl_stm32.c:631:6:lvgl_tick_handler	16	static
+../UI/lvgl_stm32.c:641:13:debug_update_task	88	static,ignoring_inline_asm
+../UI/lvgl_stm32.c:671:6:lvgl_debug_draw	8	static
+../UI/lvgl_stm32.c:679:6:lvgl_debug_set_enabled	16	static

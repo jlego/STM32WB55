@@ -102,6 +102,16 @@ static struct {
 static bool is_dimmed = false;
 static uint32_t last_activity_time = 0;
 
+/* ========== 前向声明 ========== */
+static void switch_screen(it_screen_t screen);
+static void create_clock_screen(void);
+static void create_launcher_screen(void);
+static void create_quick_settings_screen(void);
+static void create_notifications_screen(void);
+static void create_stopwatch_screen(void);
+static void create_placeholder_screen(it_screen_t screen);
+static void clock_refresh(lv_task_t *task);
+
 /* ========== 滑动手势检测 ========== */
 static lv_coord_t swipe_start_x = 0;
 static lv_coord_t swipe_start_y = 0;
@@ -151,16 +161,6 @@ void infinitime_detect_swipe(lv_coord_t x, lv_coord_t y, bool pressed)
         swipe_consumed = false;
     }
 }
-
-/* ========== 前向声明 ========== */
-static void create_clock_screen(void);
-static void create_launcher_screen(void);
-static void create_quick_settings_screen(void);
-static void create_notifications_screen(void);
-static void create_stopwatch_screen(void);
-static void create_placeholder_screen(it_screen_t screen);
-static void clock_refresh(lv_task_t *task);
-static void switch_screen(it_screen_t screen);
 
 /* ========== LVGL回调函数 ========== */
 static void clock_refresh(lv_task_t *task) {
@@ -282,6 +282,8 @@ static void create_clock_screen(void) {
     lv_obj_set_style_local_bg_color(scr, LV_OBJ_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_BLACK);
     lv_obj_clean(scr);
     
+    /* 暂时不使用lv_page，直接在屏幕上创建对象测试 */
+    
     /* 时间 - 中央 (使用系统默认字体) */
     clock_ui.label_time = lv_label_create(scr, NULL);
     lv_label_set_text(clock_ui.label_time, "12:00");
@@ -318,6 +320,12 @@ static void create_clock_screen(void) {
     lv_obj_set_style_local_text_color(clock_ui.label_steps, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, lv_color_hex(0x00FFE7));
     lv_label_set_text_static(clock_ui.label_steps, "0");
     lv_obj_set_pos(clock_ui.label_steps, 170, 240);
+    
+    /* 通知图标（隐藏） */
+    clock_ui.label_bell = lv_label_create(scr, NULL);
+    lv_label_set_text_static(clock_ui.label_bell, "");
+    lv_obj_set_pos(clock_ui.label_bell, 10, 10);
+    lv_obj_set_hidden(clock_ui.label_bell, true);
     
     /* 创建定时刷新任务 */
     clock_ui.task_refresh = lv_task_create(clock_refresh, 1000, LV_TASK_PRIO_MID, NULL);

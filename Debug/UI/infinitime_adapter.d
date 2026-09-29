@@ -1,5 +1,5 @@
 UI/infinitime_adapter.o: ../UI/infinitime_adapter.c \
- ../UI/infinitime_adapter.h ../UI/lvgl_stm32.h ../UI/lvgl/lvgl.h \
+ ../UI/infinitime_adapter.h ../UI/lvgl/lvgl.h \
  ../UI/lvgl/src/lv_misc/lv_log.h \
  ../UI/lvgl/src/lv_misc/../lv_conf_internal.h \
  ../UI/lvgl/src/lv_misc/../lv_conf_kconfig.h ../UI/lv_conf.h \
@@ -131,8 +131,8 @@ UI/infinitime_adapter.o: ../UI/infinitime_adapter.c \
  ../UI/lvgl/src/lv_widgets/lv_spinbox.h \
  ../UI/lvgl/src/lv_draw/lv_img_cache.h \
  ../UI/lvgl/src/lv_draw/lv_img_decoder.h ../UI/lvgl/src/lv_api_map.h \
- ../UI/lvgl/src/../lvgl.h ../Core/Inc/st7789.h ../Core/Inc/main.h \
- ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
+ ../UI/lvgl/src/../lvgl.h ../UI/lvgl_stm32.h ../Core/Inc/st7789.h \
+ ../Core/Inc/main.h ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h \
  ../Core/Inc/stm32wbxx_hal_conf.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_dma.h \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal_def.h \
@@ -175,7 +175,6 @@ UI/infinitime_adapter.o: ../UI/infinitime_adapter.c \
  ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_ll_system.h \
  ../Core/Inc/fonts.h ../UI/ft3168_touch.h
 ../UI/infinitime_adapter.h:
-../UI/lvgl_stm32.h:
 ../UI/lvgl/lvgl.h:
 ../UI/lvgl/src/lv_misc/lv_log.h:
 ../UI/lvgl/src/lv_misc/../lv_conf_internal.h:
@@ -330,6 +329,7 @@ UI/infinitime_adapter.o: ../UI/infinitime_adapter.c \
 ../UI/lvgl/src/lv_draw/lv_img_decoder.h:
 ../UI/lvgl/src/lv_api_map.h:
 ../UI/lvgl/src/../lvgl.h:
+../UI/lvgl_stm32.h:
 ../Core/Inc/st7789.h:
 ../Core/Inc/main.h:
 ../Drivers/STM32WBxx_HAL_Driver/Inc/stm32wbxx_hal.h:

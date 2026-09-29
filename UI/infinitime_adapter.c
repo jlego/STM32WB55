@@ -82,8 +82,7 @@ static struct {
 
 /* ========== 应用列表(Launcher)UI对象 ========== */
 static struct {
-    lv_obj_t *tileview;
-    lv_obj_t *btnm[2];  /* 两页 btnmatrix */
+    lv_obj_t *btnm[3];
     int current_page;
 } launcher_ui = {0};
 
@@ -156,10 +155,22 @@ void infinitime_detect_swipe(lv_coord_t x, lv_coord_t y, bool pressed)
             swipe_consumed = true;
             if (current_screen == IT_SCREEN_CLOCK) {
                 switch_screen(IT_SCREEN_NOTIFICATIONS);
+            } else if (current_screen == IT_SCREEN_LAUNCHER) {
+                if (launcher_ui.current_page > 0) {
+                    launcher_ui.current_page--;
+                    for (int i = 0; i < 3; i++)
+                        lv_obj_set_hidden(launcher_ui.btnm[i], i != launcher_ui.current_page);
+                }
             }
         } else if (dx < -SWIPE_THRESHOLD && abs(dx) > abs(dy)) {
             swipe_consumed = true;
-            if (current_screen != IT_SCREEN_CLOCK) {
+            if (current_screen == IT_SCREEN_LAUNCHER) {
+                if (launcher_ui.current_page < 2) {
+                    launcher_ui.current_page++;
+                    for (int i = 0; i < 3; i++)
+                        lv_obj_set_hidden(launcher_ui.btnm[i], i != launcher_ui.current_page);
+                }
+            } else if (current_screen != IT_SCREEN_CLOCK) {
                 switch_screen(IT_SCREEN_CLOCK);
             }
         } else if (dy > SWIPE_THRESHOLD && dy > abs(dx)) {
@@ -272,21 +283,16 @@ static void stopwatch_task_cb(lv_task_t *task) {
     lv_label_set_text(stopwatch_ui.label_msec, msec_buf);
 }
 
-/* 应用图标点击回调 (btnmatrix 事件) */
-void app_tile_cb(lv_obj_t *btnm, lv_event_t event) {
-    if (event != LV_EVENT_VALUE_CHANGED) return;
+void app_tile_cb(lv_obj_t *btn, lv_event_t event) {
+    if (event != LV_EVENT_CLICKED) return;
     
-    uint32_t btn_id = lv_btnmatrix_get_active_btn(btnm);
-    
-    /* 根据当前页和按钮 ID 确定应用 */
-    int app_index = -1;
-    if (launcher_ui.current_page == 0) {
-        app_index = btn_id;  /* 0-5 */
-    } else if (launcher_ui.current_page == 1) {
-        app_index = btn_id + 6;  /* 6-11 */
-    }
+    int page_idx = launcher_ui.current_page;
+    int local_idx = (int)(intptr_t)lv_obj_get_user_data(btn);
+    int app_index = local_idx + page_idx * 4;
     
     if (app_index < 0 || app_index >= 12) return;
+    
+    printf("Tile clicked: local=%d page=%d global=%d\n", local_idx, page_idx, app_index);
     
     switch (app_index) {
         case 0: switch_screen(IT_SCREEN_NOTIFICATIONS); break;
@@ -403,30 +409,33 @@ static void create_launcher_screen(void) {
     
     /* 应用图标 - FontAwesome 符号 */
     const char *icons_page1[] = {
-        SYM_BELL,          /* Notifications */
-        SYM_STOPWATCH,     /* Stopwatch */
-        SYM_CLOCK,         /* Timer */
-        SYM_MUSIC,         /* Music */
-        SYM_NAVIGATION,    /* Navigation */
-        SYM_METRONOME,     /* Metronome */
+        SYM_BELL,          /* 0 Notifications */
+        SYM_STOPWATCH,     /* 1 Stopwatch */
+        SYM_CLOCK,         /* 2 Timer */
+        SYM_MUSIC,         /* 3 Music */
     };
     
     const char *icons_page2[] = {
-        SYM_WEATHER,       /* Weather */
-        SYM_BATTERY_HALF,  /* Battery Info */
-        SYM_INFO,          /* System Info */
-        SYM_FLASHLIGHT,    /* Flashlight */
-        SYM_PADDLE,        /* Paddle */
-        SYM_DICE,          /* Dice */
+        SYM_NAVIGATION,    /* 4 Navigation */
+        SYM_METRONOME,     /* 5 Metronome */
+        SYM_WEATHER,       /* 6 Weather */
+        SYM_BATTERY_HALF,  /* 7 Battery Info */
     };
     
-    /* 创建两页 Tile 屏幕 */
-    launcher_ui.btnm[0] = infinitime_create_tile_screen(scr, 0, 2, icons_page1, 6);
-    launcher_ui.btnm[1] = infinitime_create_tile_screen(scr, 1, 2, icons_page2, 6);
+    const char *icons_page3[] = {
+        SYM_INFO,          /* 8 System Info */
+        SYM_FLASHLIGHT,    /* 9 Flashlight */
+        SYM_PADDLE,        /* 10 Paddle */
+        SYM_DICE,          /* 11 Dice */
+    };
     
-    /* 默认显示第一页 */
+    launcher_ui.btnm[0] = infinitime_create_tile_screen(scr, 0, 3, icons_page1, 4);
+    launcher_ui.btnm[1] = infinitime_create_tile_screen(scr, 1, 3, icons_page2, 4);
+    launcher_ui.btnm[2] = infinitime_create_tile_screen(scr, 2, 3, icons_page3, 4);
+    
     launcher_ui.current_page = 0;
     lv_obj_set_hidden(launcher_ui.btnm[1], true);
+    lv_obj_set_hidden(launcher_ui.btnm[2], true);
 }
 
 /* ========== 创建快捷设置 (QuickSettings) ========== */

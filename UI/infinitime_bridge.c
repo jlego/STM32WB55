@@ -41,21 +41,20 @@ lv_obj_t* infinitime_create_tile_screen(lv_obj_t *parent, int page_num, int tota
     lv_obj_set_style_local_text_color(label_time, LV_LABEL_PART_MAIN, LV_STATE_DEFAULT, LV_COLOR_WHITE);
     lv_obj_align(label_time, page, LV_ALIGN_IN_TOP_LEFT, 0, 0);
     
-    /* 创建 2x3 网格布局的按钮 - 参考 InfiniTime Tile.cpp */
-    int btn_width = 60;
-    int btn_height = 60;
-    int gap_x = 10;
-    int gap_y = 10;
-    int total_width = 3 * btn_width + 2 * gap_x;
+    int btn_width = 80;
+    int btn_height = 80;
+    int gap_x = 20;
+    int gap_y = 20;
+    int total_width = 2 * btn_width + 1 * gap_x;
     int start_x = (LV_HOR_RES_MAX - total_width) / 2;
-    int start_y = 50;
+    int start_y = 60;
     
     printf("  Button layout: start_x=%d, start_y=%d, btn_w=%d, btn_h=%d\n", 
            start_x, start_y, btn_width, btn_height);
     
-    for (int i = 0; i < 6; i++) {
-        int col = i % 3;
-        int row = i / 3;
+    for (int i = 0; i < 4; i++) {
+        int col = i % 2;
+        int row = i / 2;
         int x = start_x + col * (btn_width + gap_x);
         int y = start_y + row * (btn_height + gap_y);
         
